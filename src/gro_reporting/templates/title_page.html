@@ -1,0 +1,18 @@
+<section class="slide title-slide">
+    {% if cover_image %}
+    <img class="cover-bg" src="file://{{ cover_image }}" alt="">
+    {% endif %}
+    <div class="title-content">
+        <h1>Kampagnenupdate &amp;<br>Ausblick</h1>
+        <p class="client-name">{{ client_name }}</p>
+    </div>
+    <div class="date-label">{{ month_year }}</div>
+    {% if client_logo_path %}
+    <div class="client-logo">
+        <img src="file://{{ client_logo_path }}" alt="{{ client_name }}">
+    </div>
+    {% endif %}
+    <div class="logo-watermark">
+        <img src="file://{{ logo_path }}" alt="M.">
+    </div>
+</section>

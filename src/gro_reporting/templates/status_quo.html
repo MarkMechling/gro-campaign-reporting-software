@@ -1,0 +1,25 @@
+<section class="slide status-slide">
+    <div class="two-col">
+        <div class="status-left">
+            <h2>Status Quo<br>(Bisherige Leistung):</h2>
+            <ul class="kpi-list">
+                <li>Ad Spend: {{ ad_spend }}</li>
+                <li>Umsatz: {{ revenue }}</li>
+                <li>Aktueller ROAS: {{ roas }}</li>
+                <li>PMAX ROAS: {{ pmax_roas }}</li>
+            </ul>
+            <p class="roas-text">{{ roas_summary }}</p>
+        </div>
+        <div class="status-right">
+            <h2>Nächster Schritt<br>(Skalierung):</h2>
+            <div class="strategy-text">
+                {% for line in next_steps.strip().splitlines() %}
+                <p>{{ line }}</p>
+                {% endfor %}
+            </div>
+            <div class="logo-watermark">
+                <img src="file://{{ logo_path }}" alt="M.">
+            </div>
+        </div>
+    </div>
+</section>

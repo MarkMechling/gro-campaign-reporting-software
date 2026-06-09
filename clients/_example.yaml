@@ -1,0 +1,36 @@
+# Beispiel-Konfiguration fuer einen neuen Kunden.
+# Kopieren, umbenennen (z.B. kundenname.yaml) und anpassen.
+
+client:
+  name: "Firmenname des Kunden"
+  slug: "kundenname"       # Kurzname, wird fuer Dateinamen verwendet
+
+# Optional: Titelbild fuer die erste Seite
+# cover_image: "assets/clients/kundenname/cover.jpg"
+
+# Optional: Kundenlogo fuer die Titelseite
+# client_logo: "assets/clients/kundenname/logo.png"
+
+google_ads:
+  customer_id: "123-456-7890"    # Google Ads Customer ID
+  campaigns:
+    pmax: ["PMAX*"]              # Glob-Patterns fuer PMAX-Kampagnen
+    search: ["Search*"]          # Glob-Patterns fuer Suchanzeigen
+
+meta_ads:
+  ad_account_id: "act_123456789" # Meta Ad Account ID
+
+# Optional: GA4 fuer Merchant-Center-Daten
+# ga4:
+#   property_id: "properties/123456789"
+
+status_quo:
+  min_order_value: 50.00
+  # roas_mode: google_only | google_plus_merchant | total
+  roas_mode: google_only
+  next_steps: |
+    Strategie: Beschreibung der naechsten Schritte
+    Hier koennen mehrere Zeilen stehen.
+  footnotes: []
+  # footnotes:
+  #   - "*Eventstracking seit 30.03. live"

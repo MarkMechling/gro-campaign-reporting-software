@@ -1,0 +1,54 @@
+<section class="slide">
+    <div class="two-col">
+        <div class="panel-left">
+            <h2>Anzeigen</h2>
+        </div>
+        <div class="panel-right">
+            <h3>Kampagnen Performance Conversions</h3>
+            <p class="date-range">Zeitraum: {{ date_range }}</p>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th class="highlight">Purchase</th>
+                        <th class="highlight">Umsatz*</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in conv_rows %}
+                    <tr>
+                        <td>{{ row.name }}</td>
+                        <td>{{ row.purchases }}</td>
+                        <td>{{ row.revenue }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% if merchant_row %}
+                    <tr>
+                        <td>{{ merchant_row.name }}</td>
+                        <td>{{ merchant_row.purchases }}</td>
+                        <td>{{ merchant_row.revenue }}</td>
+                    </tr>
+                    {% endif %}
+                    <tr class="total">
+                        <td>{{ conv_total.name }}</td>
+                        <td>{{ conv_total.purchases }}</td>
+                        <td>{{ conv_total.revenue }}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            {% if footnotes %}
+            <div class="footnotes">
+                {% for fn in footnotes %}
+                <p>{{ fn }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="logo-watermark">
+                <img src="file://{{ logo_path }}" alt="M.">
+            </div>
+        </div>
+    </div>
+</section>

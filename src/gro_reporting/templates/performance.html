@@ -1,0 +1,49 @@
+<section class="slide">
+    <div class="two-col">
+        <div class="panel-left">
+            <h2>Anzeigen</h2>
+            <p class="summary-text">{{ perf_summary }}</p>
+        </div>
+        <div class="panel-right">
+            <h3>Kampagnen Performance</h3>
+            <p class="date-range">Zeitraum: {{ date_range }}</p>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>Impressionen</th>
+                        <th>Klicks</th>
+                        <th>Klickrate</th>
+                        <th>ø CPC</th>
+                        <th>Kosten</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in perf_rows %}
+                    <tr>
+                        <td>{{ row.name }}</td>
+                        <td>{{ row.impressions }}</td>
+                        <td>{{ row.clicks }}</td>
+                        <td>{{ row.ctr }}</td>
+                        <td>{{ row.avg_cpc }}</td>
+                        <td>{{ row.cost }}</td>
+                    </tr>
+                    {% endfor %}
+                    <tr class="total">
+                        <td>{{ perf_total.name }}</td>
+                        <td>{{ perf_total.impressions }}</td>
+                        <td>{{ perf_total.clicks }}</td>
+                        <td>{{ perf_total.ctr }}</td>
+                        <td>{{ perf_total.avg_cpc }}</td>
+                        <td>{{ perf_total.cost }}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="logo-watermark">
+                <img src="file://{{ logo_path }}" alt="M.">
+            </div>
+        </div>
+    </div>
+</section>

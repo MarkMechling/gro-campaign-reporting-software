@@ -1,0 +1,28 @@
+client:
+  name: "Cafe-Konditorei Fürst"
+  slug: "fuerst"
+
+cover_image: "assets/clients/fuerst/cover.jpg"
+client_logo: "assets/clients/fuerst/logo.png"
+
+google_ads:
+  customer_id: "335-170-7731"
+  campaigns:
+    pmax: ["*PMAX*"]
+    search: ["*GSU*"]
+
+meta_ads:
+  ad_account_id: "act_1254331678358701"
+
+ga4:
+  property_id: "properties/466271080"
+
+status_quo:
+  min_order_value: 50.00
+  roas_mode: google_only
+  next_steps: |
+    Strategie: Optimierung auf Ziel-ROAS (Target ROAS)
+    Zielwert: 5-7,5 (Sicheres Wachstum bei hohem Volumen)
+  footnotes:
+    - "*Eventstracking seit 30.03. live"
+    - "**Merchant Center seit 05.03. live"
