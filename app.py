@@ -17,7 +17,7 @@ from gro_reporting.report.builder import ReportBuilder
 
 load_dotenv()
 
-st.set_page_config(page_title="GRO Campaign Reporting", page_icon="📊", layout="centered")
+st.set_page_config(page_title="GRO Campaign Reporting", layout="centered")
 
 
 def last_full_month() -> tuple[date, date]:
@@ -54,7 +54,7 @@ def get_storage():
     return BigQueryStorage()
 
 
-st.title("📊 GRO Campaign Reporting")
+st.title("GRO Campaign Reporting")
 st.caption("Kampagnen-Report als PDF erstellen — Kunde und Zeitraum wählen.")
 
 slugs = list_clients()
@@ -108,17 +108,17 @@ except Exception as e:
 
 missing = total_days - len(covered)
 if missing == 0:
-    st.success(f"✅ Daten vollständig: alle {total_days} Tage in BigQuery vorhanden.")
+    st.success(f"Daten vollständig: alle {total_days} Tage in BigQuery vorhanden.")
 else:
     st.warning(
-        f"⚠️ {missing} von {total_days} Tagen fehlen in BigQuery. "
+        f"{missing} von {total_days} Tagen fehlen in BigQuery. "
         f"Bitte zuerst synchronisieren."
     )
 
 col_sync, col_pdf = st.columns(2)
 
 with col_sync:
-    if st.button("🔄 Daten synchronisieren", use_container_width=True):
+    if st.button("Daten synchronisieren", use_container_width=True):
         from gro_reporting.sync import sync_client
 
         with st.spinner("Synchronisiere Daten aus Google Ads, Meta und GA4..."):
@@ -133,7 +133,7 @@ if "sync_message" in st.session_state:
     st.info(st.session_state.pop("sync_message"))
 
 with col_pdf:
-    if st.button("📄 PDF erstellen", type="primary", use_container_width=True, disabled=missing == total_days):
+    if st.button("PDF erstellen", type="primary", use_container_width=True, disabled=missing == total_days):
         with st.spinner("Report wird erstellt..."):
             try:
                 report_data = storage.query_report_data(
@@ -151,7 +151,7 @@ with col_pdf:
 
 if "pdf_bytes" in st.session_state:
     st.download_button(
-        label=f"⬇️ {st.session_state['pdf_filename']} herunterladen",
+        label=f"{st.session_state['pdf_filename']} herunterladen",
         data=st.session_state["pdf_bytes"],
         file_name=st.session_state["pdf_filename"],
         mime="application/pdf",
