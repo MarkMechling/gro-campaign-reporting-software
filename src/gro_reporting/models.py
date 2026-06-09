@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 from datetime import date
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from pydantic import BaseModel, computed_field
+
+
+def round_conversions(value: Decimal | int | float) -> int:
+    """Fraktionale Conversions (data-driven attribution) einmalig am Ende runden."""
+    return int(Decimal(str(value)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
 class ChannelPerformance(BaseModel):
@@ -46,7 +51,9 @@ class DailyMetrics(BaseModel):
     impressions: int = 0
     clicks: int = 0
     cost: Decimal = Decimal("0")
-    purchases: int = 0
+    # Decimal statt int: Google Ads liefert fraktionale Conversions (data-driven
+    # attribution); gerundet wird erst beim Aggregieren auf Kanal-Ebene.
+    purchases: Decimal = Decimal("0")
     revenue: Decimal = Decimal("0")
 
 

@@ -8,7 +8,13 @@ from datetime import date
 from decimal import Decimal
 
 from ..config import GoogleAdsConfig
-from ..models import ChannelConversions, ChannelData, ChannelPerformance, DailyMetrics
+from ..models import (
+    ChannelConversions,
+    ChannelData,
+    ChannelPerformance,
+    DailyMetrics,
+    round_conversions,
+)
 from .base import BaseFetcher
 
 CHANNEL_LABELS = {
@@ -57,7 +63,12 @@ class GoogleAdsFetcher(BaseFetcher):
                 cost=sum(perf_by_campaign[n]["cost"] for n in matching),
             )
             conv = ChannelConversions(
-                purchases=sum(conv_by_campaign.get(n, {}).get("purchase", 0) for n in matching),
+                purchases=round_conversions(
+                    sum(
+                        (conv_by_campaign.get(n, {}).get("purchase", Decimal("0")) for n in matching),
+                        Decimal("0"),
+                    )
+                ),
                 revenue=sum(conv_by_campaign.get(n, {}).get("revenue", Decimal("0")) for n in matching),
             )
             channels.append(ChannelData(name=label, performance=perf, conversions=conv))
@@ -84,7 +95,7 @@ class GoogleAdsFetcher(BaseFetcher):
                 agg = by_date.setdefault(
                     day,
                     {"impressions": 0, "clicks": 0, "cost": Decimal("0"),
-                     "purchases": 0, "revenue": Decimal("0")},
+                     "purchases": Decimal("0"), "revenue": Decimal("0")},
                 )
                 agg["impressions"] += metrics["impressions"]
                 agg["clicks"] += metrics["clicks"]
@@ -95,7 +106,7 @@ class GoogleAdsFetcher(BaseFetcher):
                 agg = by_date.setdefault(
                     day,
                     {"impressions": 0, "clicks": 0, "cost": Decimal("0"),
-                     "purchases": 0, "revenue": Decimal("0")},
+                     "purchases": Decimal("0"), "revenue": Decimal("0")},
                 )
                 agg["purchases"] += metrics["purchase"]
                 agg["revenue"] += metrics["revenue"]
@@ -156,9 +167,9 @@ class GoogleAdsFetcher(BaseFetcher):
             key = (date.fromisoformat(row.segments.date), row.campaign.name)
             action = row.segments.conversion_action_name.lower().replace(" ", "_")
             if key not in result:
-                result[key] = {"purchase": 0, "revenue": Decimal("0")}
+                result[key] = {"purchase": Decimal("0"), "revenue": Decimal("0")}
             if "purchase" in action:
-                result[key]["purchase"] += int(row.metrics.conversions)
+                result[key]["purchase"] += Decimal(str(row.metrics.conversions))
                 result[key]["revenue"] += Decimal(str(row.metrics.conversions_value))
         return result
 
@@ -209,12 +220,12 @@ class GoogleAdsFetcher(BaseFetcher):
             action = row.segments.conversion_action_name.lower().replace(" ", "_")
             if name not in result:
                 result[name] = {
-                    "purchase": 0,
+                    "purchase": Decimal("0"),
                     "revenue": Decimal("0"),
                 }
             for key, mapped in action_map.items():
                 if key in action:
-                    result[name][mapped] += int(row.metrics.conversions)
+                    result[name][mapped] += Decimal(str(row.metrics.conversions))
                     if mapped == "purchase":
                         result[name]["revenue"] += Decimal(str(row.metrics.conversions_value))
                     break

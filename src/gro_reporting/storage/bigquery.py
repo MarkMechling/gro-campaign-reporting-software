@@ -13,13 +13,26 @@ import os
 from datetime import date
 from decimal import Decimal
 
-from ..models import ChannelConversions, ChannelData, ChannelPerformance, DailyMetrics, ReportData
+from ..models import (
+    ChannelConversions,
+    ChannelData,
+    ChannelPerformance,
+    DailyMetrics,
+    ReportData,
+    round_conversions,
+)
 
 TABLE_NAME = "daily_metrics"
+
+# BigQuery NUMERIC hat maximal 9 Nachkommastellen
+_NUMERIC_SCALE = Decimal("0.000000001")
 
 # Reihenfolge der Kanaele in der Report-Tabelle
 CHANNEL_ORDER = ["Google PMAX Kampagnen", "Suchanzeigen", "Meta Anzeigen"]
 MERCHANT_CENTER_CHANNEL = "merchant_center"
+# Marker fuer synchronisierte Tage ohne Aktivitaet (zaehlt fuer get_coverage,
+# wird in Reports ignoriert)
+NO_DATA_CHANNEL = "_no_data"
 
 
 class BigQueryStorage:
@@ -60,7 +73,9 @@ class BigQueryStorage:
             bigquery.SchemaField("impressions", "INT64"),
             bigquery.SchemaField("clicks", "INT64"),
             bigquery.SchemaField("cost", "NUMERIC"),
-            bigquery.SchemaField("purchases", "INT64"),
+            # NUMERIC: Google Ads liefert fraktionale Conversions (data-driven
+            # attribution); gerundet wird erst beim Aggregieren
+            bigquery.SchemaField("purchases", "NUMERIC"),
             bigquery.SchemaField("revenue", "NUMERIC"),
             bigquery.SchemaField("synced_at", "TIMESTAMP"),
         ]
@@ -106,9 +121,9 @@ class BigQueryStorage:
                 bigquery.ScalarQueryParameter("channel", "STRING", r.channel),
                 bigquery.ScalarQueryParameter("impressions", "INT64", r.impressions),
                 bigquery.ScalarQueryParameter("clicks", "INT64", r.clicks),
-                bigquery.ScalarQueryParameter("cost", "NUMERIC", r.cost),
-                bigquery.ScalarQueryParameter("purchases", "INT64", r.purchases),
-                bigquery.ScalarQueryParameter("revenue", "NUMERIC", r.revenue),
+                bigquery.ScalarQueryParameter("cost", "NUMERIC", r.cost.quantize(_NUMERIC_SCALE)),
+                bigquery.ScalarQueryParameter("purchases", "NUMERIC", r.purchases.quantize(_NUMERIC_SCALE)),
+                bigquery.ScalarQueryParameter("revenue", "NUMERIC", r.revenue.quantize(_NUMERIC_SCALE)),
             )
             for r in rows
         ]
@@ -163,6 +178,7 @@ class BigQueryStorage:
             FROM `{self.table_id}`
             WHERE client_slug = @slug
               AND report_date BETWEEN @date_from AND @date_to
+              AND NOT STARTS_WITH(channel, '_')
             GROUP BY channel
         """
         job_config = bigquery.QueryJobConfig(
@@ -179,7 +195,7 @@ class BigQueryStorage:
         for row in result:
             if row.channel == MERCHANT_CENTER_CHANNEL:
                 merchant_center = ChannelConversions(
-                    purchases=int(row.purchases or 0),
+                    purchases=round_conversions(row.purchases or 0),
                     revenue=Decimal(str(row.revenue or 0)),
                 )
                 continue
@@ -191,7 +207,7 @@ class BigQueryStorage:
                     cost=Decimal(str(row.cost or 0)),
                 ),
                 conversions=ChannelConversions(
-                    purchases=int(row.purchases or 0),
+                    purchases=round_conversions(row.purchases or 0),
                     revenue=Decimal(str(row.revenue or 0)),
                 ),
             )

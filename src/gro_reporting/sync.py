@@ -7,7 +7,7 @@ from datetime import date, timedelta
 
 from .config import ClientConfig
 from .models import DailyMetrics
-from .storage.bigquery import BigQueryStorage
+from .storage.bigquery import NO_DATA_CHANNEL, BigQueryStorage
 
 
 @dataclass
@@ -58,6 +58,7 @@ def sync_client(
         fetch_from, fetch_to = min(missing), max(missing)
 
     rows: list[DailyMetrics] = []
+    fetch_days = _date_range(fetch_from, fetch_to)
 
     if config.google_ads:
         from .fetchers.google_ads import GoogleAdsFetcher
@@ -76,6 +77,13 @@ def sync_client(
             GA4Fetcher(config.ga4).fetch_merchant_center_daily(slug, fetch_from, fetch_to)
         )
 
+    # Tage ohne Aktivitaet liefern keine API-Zeilen. Marker-Zeile schreiben,
+    # damit get_coverage sie als synchronisiert erkennt (sonst wuerden sie
+    # bei jedem Sync neu geholt und die UI meldet sie dauerhaft als fehlend).
+    days_with_data = {r.report_date for r in rows}
+    for day in fetch_days:
+        if day not in days_with_data:
+            rows.append(DailyMetrics(report_date=day, client_slug=slug, channel=NO_DATA_CHANNEL))
+
     written = storage.write_daily(rows)
-    days = (fetch_to - fetch_from).days + 1
-    return SyncResult(slug, fetch_from, fetch_to, days, written)
+    return SyncResult(slug, fetch_from, fetch_to, len(fetch_days), written)
