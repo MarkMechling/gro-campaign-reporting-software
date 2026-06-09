@@ -83,6 +83,8 @@ GOOGLE_APPLICATION_CREDENTIALS=/pfad/zu/service-account.json
 
 Service Account braucht die Rollen **BigQuery Data Editor** und **BigQuery Job User**. Danach einmalig `gro-report init-bq`.
 
+Aktuell konfiguriert: GCP-Projekt `llm-reporting-493211`, Service Account wiederverwendet aus `/Users/mark.mechling/PycharmProjects/massive-monitoring` (Key liegt gitignored als `service-account.json` im Root).
+
 ## Konventionen
 
 - Python 3.14 lokal (venv unter `.venv/`), Container pinnt 3.12 (Wheel-Verfuegbarkeit)
@@ -91,6 +93,10 @@ Service Account braucht die Rollen **BigQuery Data Editor** und **BigQuery Job U
 - MASSIVEART CI-Farben: Panel `#1d3c4b` (colorBlueItems), Akzent `#36f5cf` (colorGreenTurquoise), Dunkel `#161b20` (colorGreySeven), Primaer-Gruen `#009d77` (colorGreenHaze)
 - Font: GT Walsheim Pro (Light 300 + Black 900)
 - Per-Kunde-Branding: `cover_image` + `client_logo` in der Kunden-YAML (Pfade relativ zum Projekt-Root); MASSIVEART-Logo und CI bleiben fix
+- Kundenlogos: transparente PNGs, bevorzugt als weisse Knockout-Variante (Titelseite ist dunkel; das blaue Fürst-Logo war auf dem Cover unleserlich, Original liegt als `logo_blue.png` daneben)
+- Purchases sind fraktional (Google Ads data-driven attribution): als Decimal/NUMERIC durch die ganze Pipeline, gerundet wird genau einmal auf Kanal-Ebene via `models.round_conversions` -- nie `int()` auf Zeilen-Ebene (verfaelscht Summen je nach Granularitaet)
+- Synchronisierte Tage ohne Aktivitaet bekommen eine `_no_data`-Markerzeile in BigQuery; Kanaele mit `_`-Prefix sind von Report-Queries ausgeschlossen
+- Keine Emojis in der UI (Streamlit + CLI)
 - ROAS-Berechnung basiert auf tatsaechlichem Umsatz (nicht Mindestwarenkorbwert), konfigurierbar pro Kunde via `roas_mode`: `google_only`, `google_plus_merchant`, `total`
 - PMAX ROAS wird separat berechnet und auf der Status-Quo-Seite als eigene KPI-Zeile angezeigt
 - Conversions-Tabelle zeigt nur Purchase + Umsatz, Kurznamen via `builder.py:CONV_NAME_MAP`
