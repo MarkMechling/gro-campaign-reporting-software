@@ -70,13 +70,6 @@ def sync_client(
 
         rows.extend(MetaAdsFetcher(config.meta_ads).fetch_daily(slug, fetch_from, fetch_to))
 
-    if config.ga4:
-        from .fetchers.ga4 import GA4Fetcher
-
-        rows.extend(
-            GA4Fetcher(config.ga4).fetch_merchant_center_daily(slug, fetch_from, fetch_to)
-        )
-
     # Tage ohne Aktivitaet liefern keine API-Zeilen. Marker-Zeile schreiben,
     # damit get_coverage sie als synchronisiert erkennt (sonst wuerden sie
     # bei jedem Sync neu geholt und die UI meldet sie dauerhaft als fehlend).

@@ -16,7 +16,6 @@ dependencies = [
     "weasyprint>=60.0",
     "google-ads>=24.0",
     "facebook-business>=19.0",
-    "google-analytics-data>=0.18",
     "google-cloud-bigquery>=3.0",
     "streamlit>=1.35",
 ]

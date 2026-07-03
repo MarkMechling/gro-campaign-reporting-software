@@ -13,6 +13,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from gro_reporting.config import list_clients, load_client_config
+from gro_reporting.models import ChannelScope
 from gro_reporting.report.builder import ReportBuilder
 
 load_dotenv()
@@ -70,6 +71,30 @@ slug = st.selectbox(
 )
 config = configs[slug]
 
+SCOPE_LABELS = {
+    ChannelScope.GOOGLE: "Google Ads",
+    ChannelScope.META: "Meta Ads",
+    ChannelScope.ALL: "Kombiniert",
+}
+
+scope_options = []
+if config.google_ads:
+    scope_options.append(ChannelScope.GOOGLE)
+if config.meta_ads:
+    scope_options.append(ChannelScope.META)
+if config.google_ads and config.meta_ads:
+    scope_options.append(ChannelScope.ALL)
+
+if len(scope_options) > 1:
+    scope = st.radio(
+        "Kanäle",
+        options=scope_options,
+        format_func=lambda s: SCOPE_LABELS[s],
+        horizontal=True,
+    )
+else:
+    scope = scope_options[0] if scope_options else ChannelScope.ALL
+
 mode = st.radio("Zeitraum", ["Monat", "Benutzerdefiniert"], horizontal=True)
 
 if mode == "Monat":
@@ -121,7 +146,7 @@ with col_sync:
     if st.button("Daten synchronisieren", use_container_width=True):
         from gro_reporting.sync import sync_client
 
-        with st.spinner("Synchronisiere Daten aus Google Ads, Meta und GA4..."):
+        with st.spinner("Synchronisiere Daten aus Google Ads und Meta..."):
             try:
                 result = sync_client(config, date_from, date_to, storage=storage)
                 st.session_state["sync_message"] = result.summary()
@@ -138,9 +163,10 @@ with col_pdf:
             try:
                 report_data = storage.query_report_data(
                     slug, config.client.name, date_from, date_to
-                )
+                ).for_scope(scope)
                 builder = ReportBuilder(config, report_data)
-                filename = f"{date_from.strftime('%Y-%m')}_{slug}_Kampagnenupdate.pdf"
+                scope_suffix = "" if scope == ChannelScope.ALL else f"_{scope.value}"
+                filename = f"{date_from.strftime('%Y-%m')}_{slug}_Kampagnenupdate{scope_suffix}.pdf"
                 with tempfile.TemporaryDirectory() as tmpdir:
                     output_path = Path(tmpdir) / filename
                     builder.build(output_path)

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from enum import Enum
 from pathlib import Path
 from typing import Optional
 
@@ -10,12 +9,6 @@ import yaml
 from pydantic import BaseModel, field_validator
 
 CLIENTS_DIR = Path(__file__).resolve().parent.parent.parent / "clients"
-
-
-class RoasMode(str, Enum):
-    GOOGLE_ONLY = "google_only"
-    GOOGLE_PLUS_MERCHANT = "google_plus_merchant"
-    TOTAL = "total"
 
 
 class ClientInfo(BaseModel):
@@ -37,24 +30,18 @@ class MetaAdsConfig(BaseModel):
     ad_account_id: str
 
 
-class GA4Config(BaseModel):
-    property_id: str
-
-
 class StatusQuoConfig(BaseModel):
-    min_order_value: float = 50.0
-    roas_mode: RoasMode = RoasMode.GOOGLE_ONLY
     next_steps: str = ""
     footnotes: list[str] = []
 
 
 class ClientConfig(BaseModel):
     client: ClientInfo
+    currency: str = "EUR"  # Abrechnungswaehrung des Ads-Kontos (z.B. CHF)
     cover_image: Optional[str] = None
     client_logo: Optional[str] = None
     google_ads: Optional[GoogleAdsConfig] = None
     meta_ads: Optional[MetaAdsConfig] = None
-    ga4: Optional[GA4Config] = None
     status_quo: StatusQuoConfig = StatusQuoConfig()
 
 

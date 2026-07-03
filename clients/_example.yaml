@@ -5,6 +5,9 @@ client:
   name: "Firmenname des Kunden"
   slug: "kundenname"       # Kurzname, wird fuer Dateinamen verwendet
 
+# Optional: Abrechnungswaehrung des Ads-Kontos (Default: EUR)
+# currency: "CHF"
+
 # Optional: Titelbild fuer die erste Seite
 # cover_image: "assets/clients/kundenname/cover.jpg"
 
@@ -17,17 +20,13 @@ google_ads:
     pmax: ["PMAX*"]              # Glob-Patterns fuer PMAX-Kampagnen
     search: ["Search*"]          # Glob-Patterns fuer Suchanzeigen
 
+# google_ads und meta_ads sind beide optional -- konfigurieren, was der
+# Kunde nutzt. In UI/CLI laesst sich der Report pro Kanal oder kombiniert
+# generieren (--channels google|meta|all).
 meta_ads:
   ad_account_id: "act_123456789" # Meta Ad Account ID
 
-# Optional: GA4 fuer Merchant-Center-Daten
-# ga4:
-#   property_id: "properties/123456789"
-
 status_quo:
-  min_order_value: 50.00
-  # roas_mode: google_only | google_plus_merchant | total
-  roas_mode: google_only
   next_steps: |
     Strategie: Beschreibung der naechsten Schritte
     Hier koennen mehrere Zeilen stehen.

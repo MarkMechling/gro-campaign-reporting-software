@@ -9,6 +9,7 @@ from gro_reporting.models import (
     ChannelConversions,
     ChannelData,
     ChannelPerformance,
+    ChannelScope,
     ReportData,
 )
 from gro_reporting.report.builder import ReportBuilder
@@ -60,10 +61,6 @@ def _reference_data() -> ReportData:
                 ),
             ),
         ],
-        merchant_center=ChannelConversions(
-            purchases=4,
-            revenue=Decimal("283.64"),
-        ),
     )
 
 
@@ -71,15 +68,12 @@ def _reference_config() -> ClientConfig:
     return ClientConfig(
         client=ClientInfo(name="Cafe-Konditorei Fürst", slug="fuerst"),
         status_quo=StatusQuoConfig(
-            min_order_value=50.0,
-            roas_mode="google_only",
             next_steps=(
                 "Strategie: Optimierung auf Ziel-ROAS (Target ROAS)\n"
                 "Zielwert: 5-7,5 (Sicheres Wachstum bei hohem Volumen)"
             ),
             footnotes=[
                 "*Eventstracking seit 30.03. live",
-                "**Merchant Center seit 05.03. live",
             ],
         ),
     )
@@ -93,13 +87,44 @@ def test_reference_pdf_generation():
     assert data.total_performance.clicks == 30609
     assert data.total_performance.cost == Decimal("3797.96")
 
-    assert data.total_conversions.purchases == 466
-    assert data.google_ad_spend() == Decimal("2368.96")
-    assert data.google_purchases() == 458
+    assert data.total_conversions.purchases == 462
+    assert data.total_conversions.revenue == Decimal("8811.84")
 
     builder = ReportBuilder(config, data)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     output_path = OUTPUT_DIR / "test_reference.pdf"
+    builder.build(output_path)
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+def test_channel_scope_filtering():
+    data = _reference_data()
+
+    google = data.for_scope(ChannelScope.GOOGLE)
+    assert [c.name for c in google.channels] == ["Google PMAX Kampagnen", "Suchanzeigen"]
+    assert google.total_performance.cost == Decimal("2368.96")
+    assert google.total_conversions.purchases == 458
+
+    meta = data.for_scope(ChannelScope.META)
+    assert [c.name for c in meta.channels] == ["Meta Anzeigen"]
+    assert meta.total_conversions.purchases == 4
+
+    assert data.for_scope(ChannelScope.ALL).channels == data.channels
+
+
+def test_scoped_pdf_generation():
+    """Meta-only Report: kein PMAX-ROAS, Meta-Wording im ROAS-Satz."""
+    data = _reference_data().for_scope(ChannelScope.META)
+    config = _reference_config()
+
+    builder = ReportBuilder(config, data)
+    context = builder._build_context()
+    assert context["pmax_roas"] is None
+    assert "Meta Ads" in context["roas_summary"]
+
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = OUTPUT_DIR / "test_reference_meta.pdf"
     builder.build(output_path)
     assert output_path.exists()
     assert output_path.stat().st_size > 0

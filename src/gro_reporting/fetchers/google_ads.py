@@ -20,6 +20,20 @@ from .base import BaseFetcher
 CHANNEL_LABELS = {
     "pmax": "Google PMAX Kampagnen",
     "search": "Suchanzeigen",
+    "demand_gen": "Demand Gen Kampagnen",
+    "display": "Display Kampagnen",
+    "youtube": "YouTube Kampagnen",
+}
+
+# Auto-Kategorisierung nach advertising_channel_type, wenn in der Kunden-YAML
+# keine campaigns-Patterns konfiguriert sind (= ganzer Account im Report)
+TYPE_LABELS = {
+    "SEARCH": "Suchanzeigen",
+    "PERFORMANCE_MAX": "Google PMAX Kampagnen",
+    "DEMAND_GEN": "Demand Gen Kampagnen",
+    "DISPLAY": "Display Kampagnen",
+    "VIDEO": "YouTube Kampagnen",
+    "SHOPPING": "Shopping Kampagnen",
 }
 
 
@@ -42,25 +56,54 @@ class GoogleAdsFetcher(BaseFetcher):
             }
         )
 
+    def _channel_groups(self, campaign_types: dict[str, str]) -> list[tuple[str, list[str]]]:
+        """Kampagnen zu Report-Kanaelen gruppieren.
+
+        Mit campaigns-Patterns in der YAML: Name-Matching wie bisher.
+        Ohne Patterns: automatisch nach advertising_channel_type (ganzer Account).
+        """
+        if self.config.campaigns:
+            return [
+                (
+                    CHANNEL_LABELS.get(key, key),
+                    [
+                        name for name in campaign_types
+                        if any(fnmatch.fnmatch(name, p) for p in patterns)
+                    ],
+                )
+                for key, patterns in self.config.campaigns.items()
+            ]
+
+        groups: dict[str, list[str]] = {}
+        for name, ctype in campaign_types.items():
+            label = TYPE_LABELS.get(ctype, ctype)
+            groups.setdefault(label, []).append(name)
+        order = list(dict.fromkeys(["Google PMAX Kampagnen", *TYPE_LABELS.values()]))
+        return sorted(
+            groups.items(),
+            key=lambda kv: order.index(kv[0]) if kv[0] in order else len(order),
+        )
+
     def fetch(self, date_from: date, date_to: date) -> list[ChannelData]:
         ga_service = self.client.get_service("GoogleAdsService")
         customer_id = self.config.customer_id
 
-        perf_by_campaign = self._fetch_performance(ga_service, customer_id, date_from, date_to)
-        conv_by_campaign = self._fetch_conversions(ga_service, customer_id, date_from, date_to)
+        perf_by_campaign, perf_types = self._fetch_performance(
+            ga_service, customer_id, date_from, date_to
+        )
+        conv_by_campaign, conv_types = self._fetch_conversions(
+            ga_service, customer_id, date_from, date_to
+        )
 
         channels = []
-        for channel_key, patterns in self.config.campaigns.items():
-            label = CHANNEL_LABELS.get(channel_key, channel_key)
-            matching = [
-                name for name in perf_by_campaign
-                if any(fnmatch.fnmatch(name, p) for p in patterns)
-            ]
-
+        for label, matching in self._channel_groups({**conv_types, **perf_types}):
             perf = ChannelPerformance(
-                impressions=sum(perf_by_campaign[n]["impressions"] for n in matching),
-                clicks=sum(perf_by_campaign[n]["clicks"] for n in matching),
-                cost=sum(perf_by_campaign[n]["cost"] for n in matching),
+                impressions=sum(perf_by_campaign.get(n, {}).get("impressions", 0) for n in matching),
+                clicks=sum(perf_by_campaign.get(n, {}).get("clicks", 0) for n in matching),
+                cost=sum(
+                    (perf_by_campaign.get(n, {}).get("cost", Decimal("0")) for n in matching),
+                    Decimal("0"),
+                ),
             )
             conv = ChannelConversions(
                 purchases=round_conversions(
@@ -81,16 +124,20 @@ class GoogleAdsFetcher(BaseFetcher):
         ga_service = self.client.get_service("GoogleAdsService")
         customer_id = self.config.customer_id
 
-        perf_daily = self._fetch_performance_daily(ga_service, customer_id, date_from, date_to)
-        conv_daily = self._fetch_conversions_daily(ga_service, customer_id, date_from, date_to)
+        perf_daily, perf_types = self._fetch_performance_daily(
+            ga_service, customer_id, date_from, date_to
+        )
+        conv_daily, conv_types = self._fetch_conversions_daily(
+            ga_service, customer_id, date_from, date_to
+        )
 
         rows: list[DailyMetrics] = []
-        for channel_key, patterns in self.config.campaigns.items():
-            label = CHANNEL_LABELS.get(channel_key, channel_key)
+        for label, matching in self._channel_groups({**conv_types, **perf_types}):
+            names = set(matching)
 
             by_date: dict[date, dict] = {}
             for (day, name), metrics in perf_daily.items():
-                if not any(fnmatch.fnmatch(name, p) for p in patterns):
+                if name not in names:
                     continue
                 agg = by_date.setdefault(
                     day,
@@ -101,7 +148,7 @@ class GoogleAdsFetcher(BaseFetcher):
                 agg["clicks"] += metrics["clicks"]
                 agg["cost"] += metrics["cost"]
             for (day, name), metrics in conv_daily.items():
-                if not any(fnmatch.fnmatch(name, p) for p in patterns):
+                if name not in names:
                     continue
                 agg = by_date.setdefault(
                     day,
@@ -124,11 +171,12 @@ class GoogleAdsFetcher(BaseFetcher):
 
     def _fetch_performance_daily(
         self, ga_service, customer_id: str, date_from: date, date_to: date
-    ) -> dict:
+    ) -> tuple[dict, dict[str, str]]:
         query = f"""
             SELECT
                 segments.date,
                 campaign.name,
+                campaign.advertising_channel_type,
                 metrics.impressions,
                 metrics.clicks,
                 metrics.cost_micros
@@ -138,22 +186,25 @@ class GoogleAdsFetcher(BaseFetcher):
         """
         response = ga_service.search(customer_id=customer_id, query=query)
         result: dict = {}
+        types: dict[str, str] = {}
         for row in response:
             key = (date.fromisoformat(row.segments.date), row.campaign.name)
+            types[row.campaign.name] = row.campaign.advertising_channel_type.name
             if key not in result:
                 result[key] = {"impressions": 0, "clicks": 0, "cost": Decimal("0")}
             result[key]["impressions"] += row.metrics.impressions
             result[key]["clicks"] += row.metrics.clicks
             result[key]["cost"] += Decimal(row.metrics.cost_micros) / 1_000_000
-        return result
+        return result, types
 
     def _fetch_conversions_daily(
         self, ga_service, customer_id: str, date_from: date, date_to: date
-    ) -> dict:
+    ) -> tuple[dict, dict[str, str]]:
         query = f"""
             SELECT
                 segments.date,
                 campaign.name,
+                campaign.advertising_channel_type,
                 segments.conversion_action_name,
                 metrics.conversions,
                 metrics.conversions_value
@@ -163,22 +214,25 @@ class GoogleAdsFetcher(BaseFetcher):
         """
         response = ga_service.search(customer_id=customer_id, query=query)
         result: dict = {}
+        types: dict[str, str] = {}
         for row in response:
             key = (date.fromisoformat(row.segments.date), row.campaign.name)
+            types[row.campaign.name] = row.campaign.advertising_channel_type.name
             action = row.segments.conversion_action_name.lower().replace(" ", "_")
             if key not in result:
                 result[key] = {"purchase": Decimal("0"), "revenue": Decimal("0")}
             if "purchase" in action:
                 result[key]["purchase"] += Decimal(str(row.metrics.conversions))
                 result[key]["revenue"] += Decimal(str(row.metrics.conversions_value))
-        return result
+        return result, types
 
     def _fetch_performance(
         self, ga_service, customer_id: str, date_from: date, date_to: date
-    ) -> dict:
+    ) -> tuple[dict, dict[str, str]]:
         query = f"""
             SELECT
                 campaign.name,
+                campaign.advertising_channel_type,
                 metrics.impressions,
                 metrics.clicks,
                 metrics.cost_micros
@@ -188,21 +242,24 @@ class GoogleAdsFetcher(BaseFetcher):
         """
         response = ga_service.search(customer_id=customer_id, query=query)
         result: dict = {}
+        types: dict[str, str] = {}
         for row in response:
             name = row.campaign.name
+            types[name] = row.campaign.advertising_channel_type.name
             if name not in result:
                 result[name] = {"impressions": 0, "clicks": 0, "cost": Decimal("0")}
             result[name]["impressions"] += row.metrics.impressions
             result[name]["clicks"] += row.metrics.clicks
             result[name]["cost"] += Decimal(row.metrics.cost_micros) / 1_000_000
-        return result
+        return result, types
 
     def _fetch_conversions(
         self, ga_service, customer_id: str, date_from: date, date_to: date
-    ) -> dict:
+    ) -> tuple[dict, dict[str, str]]:
         query = f"""
             SELECT
                 campaign.name,
+                campaign.advertising_channel_type,
                 segments.conversion_action_name,
                 metrics.conversions,
                 metrics.conversions_value
@@ -212,21 +269,17 @@ class GoogleAdsFetcher(BaseFetcher):
         """
         response = ga_service.search(customer_id=customer_id, query=query)
         result: dict = {}
-        action_map = {
-            "purchase": "purchase",
-        }
+        types: dict[str, str] = {}
         for row in response:
             name = row.campaign.name
+            types[name] = row.campaign.advertising_channel_type.name
             action = row.segments.conversion_action_name.lower().replace(" ", "_")
             if name not in result:
                 result[name] = {
                     "purchase": Decimal("0"),
                     "revenue": Decimal("0"),
                 }
-            for key, mapped in action_map.items():
-                if key in action:
-                    result[name][mapped] += Decimal(str(row.metrics.conversions))
-                    if mapped == "purchase":
-                        result[name]["revenue"] += Decimal(str(row.metrics.conversions_value))
-                    break
-        return result
+            if "purchase" in action:
+                result[name]["purchase"] += Decimal(str(row.metrics.conversions))
+                result[name]["revenue"] += Decimal(str(row.metrics.conversions_value))
+        return result, types

@@ -28,8 +28,18 @@ TABLE_NAME = "daily_metrics"
 _NUMERIC_SCALE = Decimal("0.000000001")
 
 # Reihenfolge der Kanaele in der Report-Tabelle
-CHANNEL_ORDER = ["Google PMAX Kampagnen", "Suchanzeigen", "Meta Anzeigen"]
-MERCHANT_CENTER_CHANNEL = "merchant_center"
+CHANNEL_ORDER = [
+    "Google PMAX Kampagnen",
+    "Suchanzeigen",
+    "Demand Gen Kampagnen",
+    "Display Kampagnen",
+    "YouTube Kampagnen",
+    "Shopping Kampagnen",
+    "Meta Anzeigen",
+]
+# Historischer Kanal (GA4 Organic Shopping); Feature entfernt, Altdaten
+# bleiben in der Tabelle und werden von Report-Queries ausgeschlossen.
+LEGACY_MERCHANT_CENTER_CHANNEL = "merchant_center"
 # Marker fuer synchronisierte Tage ohne Aktivitaet (zaehlt fuer get_coverage,
 # wird in Reports ignoriert)
 NO_DATA_CHANNEL = "_no_data"
@@ -179,6 +189,7 @@ class BigQueryStorage:
             WHERE client_slug = @slug
               AND report_date BETWEEN @date_from AND @date_to
               AND NOT STARTS_WITH(channel, '_')
+              AND channel != @legacy_merchant
             GROUP BY channel
         """
         job_config = bigquery.QueryJobConfig(
@@ -186,19 +197,15 @@ class BigQueryStorage:
                 bigquery.ScalarQueryParameter("slug", "STRING", slug),
                 bigquery.ScalarQueryParameter("date_from", "DATE", date_from),
                 bigquery.ScalarQueryParameter("date_to", "DATE", date_to),
+                bigquery.ScalarQueryParameter(
+                    "legacy_merchant", "STRING", LEGACY_MERCHANT_CENTER_CHANNEL
+                ),
             ]
         )
         result = self.client.query(query, job_config=job_config).result()
 
         by_channel: dict[str, ChannelData] = {}
-        merchant_center: ChannelConversions | None = None
         for row in result:
-            if row.channel == MERCHANT_CENTER_CHANNEL:
-                merchant_center = ChannelConversions(
-                    purchases=round_conversions(row.purchases or 0),
-                    revenue=Decimal(str(row.revenue or 0)),
-                )
-                continue
             by_channel[row.channel] = ChannelData(
                 name=row.channel,
                 performance=ChannelPerformance(
@@ -221,5 +228,4 @@ class BigQueryStorage:
             date_from=date_from,
             date_to=date_to,
             channels=ordered,
-            merchant_center=merchant_center,
         )

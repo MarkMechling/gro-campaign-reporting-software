@@ -6,7 +6,13 @@ from datetime import date
 from decimal import Decimal
 
 from ..config import ClientConfig
-from ..models import ChannelConversions, ChannelData, ChannelPerformance, ReportData
+from ..models import (
+    ChannelConversions,
+    ChannelData,
+    ChannelPerformance,
+    ChannelScope,
+    ReportData,
+)
 
 
 def fetch_all_channels(
@@ -14,29 +20,26 @@ def fetch_all_channels(
     date_from: date,
     date_to: date,
     skip_fetch: bool = False,
+    scope: ChannelScope = ChannelScope.ALL,
 ) -> ReportData:
     channels: list[ChannelData] = []
-    merchant_center: ChannelConversions | None = None
 
-    if config.google_ads and not skip_fetch:
+    fetch_google = scope in (ChannelScope.GOOGLE, ChannelScope.ALL)
+    fetch_meta = scope in (ChannelScope.META, ChannelScope.ALL)
+
+    if config.google_ads and fetch_google and not skip_fetch:
         from .google_ads import GoogleAdsFetcher
 
         fetcher = GoogleAdsFetcher(config.google_ads)
         google_channels = fetcher.fetch(date_from, date_to)
         channels.extend(google_channels)
 
-    if config.meta_ads and not skip_fetch:
+    if config.meta_ads and fetch_meta and not skip_fetch:
         from .meta_ads import MetaAdsFetcher
 
         fetcher = MetaAdsFetcher(config.meta_ads)
         meta_data = fetcher.fetch(date_from, date_to)
         channels.append(meta_data)
-
-    if config.ga4 and not skip_fetch:
-        from .ga4 import GA4Fetcher
-
-        fetcher = GA4Fetcher(config.ga4)
-        merchant_center = fetcher.fetch_merchant_center(date_from, date_to)
 
     if not channels and skip_fetch:
         channels = _placeholder_channels()
@@ -47,8 +50,7 @@ def fetch_all_channels(
         date_from=date_from,
         date_to=date_to,
         channels=channels,
-        merchant_center=merchant_center,
-    )
+    ).for_scope(scope)
 
 
 def _placeholder_channels() -> list[ChannelData]:

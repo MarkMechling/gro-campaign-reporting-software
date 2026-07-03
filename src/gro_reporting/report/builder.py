@@ -7,8 +7,9 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
-from ..config import ClientConfig, RoasMode
+from ..config import ClientConfig
 from ..formatting import (
+    currency_symbol,
     format_currency,
     format_currency_suffix,
     format_date_short,
@@ -21,7 +22,7 @@ from ..formatting import (
 CONV_NAME_MAP = {
     "Google PMAX Kampagnen": "PMAX",
 }
-from ..models import ReportData
+from ..models import META_CHANNEL, ReportData
 from .renderer import render_pdf
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
@@ -32,11 +33,15 @@ class ReportBuilder:
     def __init__(self, config: ClientConfig, data: ReportData):
         self.config = config
         self.data = data
+        self.currency = config.currency
         self.env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)))
         self.env.filters["fmt_number"] = format_number
-        self.env.filters["fmt_currency"] = format_currency
+        self.env.filters["fmt_currency"] = self._fmt_currency
         self.env.filters["fmt_percent"] = format_percent
         self.env.filters["fmt_roas"] = format_roas
+
+    def _fmt_currency(self, n) -> str:
+        return format_currency(n, currency=self.currency)
 
     def build(self, output_path: Path):
         context = self._build_context()
@@ -63,8 +68,8 @@ class ReportBuilder:
                 "impressions": format_number(ch.performance.impressions),
                 "clicks": format_number(ch.performance.clicks),
                 "ctr": format_percent(ch.performance.ctr),
-                "avg_cpc": format_currency(ch.performance.avg_cpc),
-                "cost": format_currency(ch.performance.cost),
+                "avg_cpc": self._fmt_currency(ch.performance.avg_cpc),
+                "cost": self._fmt_currency(ch.performance.cost),
             })
 
         perf_total = {
@@ -72,8 +77,8 @@ class ReportBuilder:
             "impressions": format_number(total_perf.impressions),
             "clicks": format_number(total_perf.clicks),
             "ctr": format_percent(total_perf.ctr),
-            "avg_cpc": format_currency(total_perf.avg_cpc),
-            "cost": format_currency(total_perf.cost),
+            "avg_cpc": self._fmt_currency(total_perf.avg_cpc),
+            "cost": self._fmt_currency(total_perf.cost),
         }
 
         conv_rows = []
@@ -81,22 +86,13 @@ class ReportBuilder:
             conv_rows.append({
                 "name": CONV_NAME_MAP.get(ch.name, ch.name),
                 "purchases": format_number(ch.conversions.purchases),
-                "revenue": format_currency(ch.conversions.revenue),
+                "revenue": self._fmt_currency(ch.conversions.revenue),
             })
-
-        merchant_row = None
-        if data.merchant_center:
-            mc = data.merchant_center
-            merchant_row = {
-                "name": "Unbezahlter Traffic durch Merchant Center**",
-                "purchases": format_number(mc.purchases),
-                "revenue": format_currency(mc.revenue),
-            }
 
         conv_total = {
             "name": "GESAMT",
             "purchases": format_number(total_conv.purchases),
-            "revenue": format_currency(total_conv.revenue),
+            "revenue": self._fmt_currency(total_conv.revenue),
         }
 
         ad_spend, revenue, roas, pmax_roas = self._calc_status_quo()
@@ -105,9 +101,12 @@ class ReportBuilder:
             f"Mit {format_number(total_perf.impressions)} Impressionen "
             f"konnten wir wertvolle Kontaktpunkte zur Zielgruppe schaffen."
         )
+        invested_unit = {"EUR": "Euro", "CHF": "Franken"}.get(
+            self.currency, currency_symbol(self.currency)
+        )
         roas_summary = (
-            f"Für jeden investierten Euro in Google Ads "
-            f"kommen im Schnitt {format_roas(roas)} € Umsatz zurück."
+            f"Für jeden investierten {invested_unit} in {self._scope_label()} "
+            f"kommen im Schnitt {format_roas(roas)} {currency_symbol(self.currency)} Umsatz zurück."
         )
 
         cover_image_path = self._resolve_asset(config.cover_image)
@@ -125,13 +124,12 @@ class ReportBuilder:
             "perf_total": perf_total,
             "perf_summary": perf_summary,
             "conv_rows": conv_rows,
-            "merchant_row": merchant_row,
             "conv_total": conv_total,
             "footnotes": sq.footnotes,
-            "ad_spend": format_currency_suffix(ad_spend),
-            "revenue": format_currency_suffix(revenue),
+            "ad_spend": format_currency_suffix(ad_spend, currency=self.currency),
+            "revenue": format_currency_suffix(revenue, currency=self.currency),
             "roas": format_roas(roas),
-            "pmax_roas": format_roas(pmax_roas),
+            "pmax_roas": format_roas(pmax_roas) if pmax_roas is not None else None,
             "roas_summary": roas_summary,
             "next_steps": sq.next_steps,
         }
@@ -146,26 +144,28 @@ class ReportBuilder:
             candidate = Path(__file__).resolve().parent.parent.parent.parent / candidate
         return str(candidate) if candidate.exists() else None
 
-    def _calc_status_quo(self) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+    def _scope_label(self) -> str:
+        """Kanalbezeichnung fuer den ROAS-Satz, abhaengig von den Report-Kanaelen."""
+        has_meta = any(c.name == META_CHANNEL for c in self.data.channels)
+        has_google = any(c.name != META_CHANNEL for c in self.data.channels)
+        if has_google and has_meta:
+            return "Google & Meta Ads"
+        if has_meta:
+            return "Meta Ads"
+        return "Google Ads"
+
+    def _calc_status_quo(self) -> tuple[Decimal, Decimal, Decimal, Decimal | None]:
+        """ROAS ueber die Kanaele des Reports; PMAX-ROAS nur wenn PMAX enthalten ist."""
         data = self.data
-        sq = self.config.status_quo
 
-        if sq.roas_mode == RoasMode.GOOGLE_ONLY:
-            ad_spend = data.google_ad_spend()
-            revenue = data.google_revenue()
-        elif sq.roas_mode == RoasMode.GOOGLE_PLUS_MERCHANT:
-            ad_spend = data.google_ad_spend()
-            revenue = data.google_revenue()
-            if data.merchant_center:
-                revenue += data.merchant_center.revenue
-        else:
-            ad_spend = data.total_performance.cost
-            revenue = data.total_conversions.revenue
-
+        ad_spend = data.total_performance.cost
+        revenue = data.total_conversions.revenue
         roas = (revenue / ad_spend).quantize(Decimal("0.01")) if ad_spend else Decimal("0")
 
         pmax = next((c for c in data.channels if c.name == "Google PMAX Kampagnen"), None)
-        if pmax and pmax.performance.cost:
+        if pmax is None:
+            pmax_roas = None
+        elif pmax.performance.cost:
             pmax_roas = (pmax.conversions.revenue / pmax.performance.cost).quantize(Decimal("0.01"))
         else:
             pmax_roas = Decimal("0")

@@ -16,8 +16,17 @@ def format_number(n: int | float | Decimal) -> str:
     return f"-{s}" if n < 0 else s
 
 
-def format_currency(n: float | Decimal, show_cents: bool = True) -> str:
-    """1234.56 -> 'EUR 1.234,56'"""
+# Anzeige-Symbol je Waehrungscode; unbekannte Codes werden 1:1 angezeigt
+CURRENCY_SYMBOLS = {"EUR": "€", "CHF": "CHF"}
+
+
+def currency_symbol(currency: str) -> str:
+    return CURRENCY_SYMBOLS.get(currency, currency)
+
+
+def format_currency(n: float | Decimal, show_cents: bool = True, currency: str = "EUR") -> str:
+    """1234.56 -> '€ 1.234,56' bzw. 'CHF 1.234,56'"""
+    symbol = currency_symbol(currency)
     if not isinstance(n, Decimal):
         n = Decimal(str(n))
     n = n.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -27,8 +36,8 @@ def format_currency(n: float | Decimal, show_cents: bool = True) -> str:
     cents = int((n - integer_part) * 100)
     int_str = f"{integer_part:,}".replace(",", ".")
     if show_cents:
-        return f"{sign}€ {int_str},{cents:02d}"
-    return f"{sign}€ {int_str}"
+        return f"{sign}{symbol} {int_str},{cents:02d}"
+    return f"{sign}{symbol} {int_str}"
 
 
 def format_percent(n: float | Decimal) -> str:
@@ -60,8 +69,9 @@ def format_month_year(d: date) -> str:
     return f"{months[d.month]}, {d.year}"
 
 
-def format_currency_suffix(n: float | Decimal, show_cents: bool = True) -> str:
-    """1234.56 -> '1.234,56 EUR'"""
+def format_currency_suffix(n: float | Decimal, show_cents: bool = True, currency: str = "EUR") -> str:
+    """1234.56 -> '1.234,56 €' bzw. '1.234,56 CHF'"""
+    symbol = currency_symbol(currency)
     if not isinstance(n, Decimal):
         n = Decimal(str(n))
     n = n.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -71,8 +81,8 @@ def format_currency_suffix(n: float | Decimal, show_cents: bool = True) -> str:
     cents = int((n - integer_part) * 100)
     int_str = f"{integer_part:,}".replace(",", ".")
     if show_cents:
-        return f"{sign}{int_str},{cents:02d} €"
-    return f"{sign}{int_str} €"
+        return f"{sign}{int_str},{cents:02d} {symbol}"
+    return f"{sign}{int_str} {symbol}"
 
 
 def format_roas(n: float | Decimal) -> str:

@@ -10,6 +10,7 @@ import click
 from dotenv import load_dotenv
 
 from .config import ClientConfig, list_clients, load_client_config
+from .models import ChannelScope
 from .report.builder import ReportBuilder
 
 load_dotenv()
@@ -35,6 +36,7 @@ def generate_for_client(
     dry_run: bool = False,
     skip_fetch: bool = False,
     source: str = "live",
+    scope: ChannelScope = ChannelScope.ALL,
 ) -> Path | None:
     if source == "bq":
         from .storage.bigquery import BigQueryStorage
@@ -46,12 +48,14 @@ def generate_for_client(
             raise click.ClickException(str(e))
         report_data = storage.query_report_data(
             config.client.slug, config.client.name, date_from, date_to
-        )
+        ).for_scope(scope)
     else:
         from .fetchers import fetch_all_channels
 
         click.echo(f"  Daten abrufen fuer {config.client.name}...")
-        report_data = fetch_all_channels(config, date_from, date_to, skip_fetch=skip_fetch)
+        report_data = fetch_all_channels(
+            config, date_from, date_to, skip_fetch=skip_fetch, scope=scope
+        )
 
     if dry_run:
         click.echo(f"  [dry-run] Daten abgerufen, kein PDF generiert.")
@@ -69,7 +73,8 @@ def generate_for_client(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     month_str = date_from.strftime("%Y-%m")
-    filename = f"{month_str}_{config.client.slug}_Kampagnenupdate.pdf"
+    scope_suffix = "" if scope == ChannelScope.ALL else f"_{scope.value}"
+    filename = f"{month_str}_{config.client.slug}_Kampagnenupdate{scope_suffix}.pdf"
     output_path = output_dir / filename
 
     builder.build(output_path)
@@ -98,6 +103,13 @@ def cli():
     show_default=True,
     help="Datenquelle: live APIs oder BigQuery",
 )
+@click.option(
+    "--channels",
+    type=click.Choice([s.value for s in ChannelScope]),
+    default=ChannelScope.ALL.value,
+    show_default=True,
+    help="Kanaele im Report: google, meta oder all (kombiniert)",
+)
 def generate(
     client: str,
     month: str | None,
@@ -107,6 +119,7 @@ def generate(
     skip_fetch: bool,
     output: str | None,
     source: str,
+    channels: str,
 ):
     """Report fuer einen oder alle Kunden generieren."""
     if month:
@@ -119,6 +132,7 @@ def generate(
         sys.exit(1)
 
     output_dir = Path(output) if output else OUTPUT_DIR
+    scope = ChannelScope(channels)
 
     if client == "all":
         slugs = list_clients()
@@ -129,11 +143,15 @@ def generate(
         for slug in slugs:
             click.echo(f"\n[{slug}]")
             config = load_client_config(slug)
-            generate_for_client(config, date_from, date_to, output_dir, dry_run, skip_fetch, source)
+            generate_for_client(
+                config, date_from, date_to, output_dir, dry_run, skip_fetch, source, scope
+            )
     else:
         config = load_client_config(client)
         click.echo(f"[{config.client.name}]")
-        generate_for_client(config, date_from, date_to, output_dir, dry_run, skip_fetch, source)
+        generate_for_client(
+            config, date_from, date_to, output_dir, dry_run, skip_fetch, source, scope
+        )
 
 
 @cli.command()

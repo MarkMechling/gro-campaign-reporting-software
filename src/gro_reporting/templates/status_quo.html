@@ -6,7 +6,9 @@
                 <li>Ad Spend: {{ ad_spend }}</li>
                 <li>Umsatz: {{ revenue }}</li>
                 <li>Aktueller ROAS: {{ roas }}</li>
+                {% if pmax_roas is not none %}
                 <li>PMAX ROAS: {{ pmax_roas }}</li>
+                {% endif %}
             </ul>
             <p class="roas-text">{{ roas_summary }}</p>
         </div>

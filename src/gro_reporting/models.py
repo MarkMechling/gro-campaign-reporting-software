@@ -4,8 +4,19 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
+from enum import Enum
 
 from pydantic import BaseModel, computed_field
+
+META_CHANNEL = "Meta Anzeigen"
+
+
+class ChannelScope(str, Enum):
+    """Kanal-Auswahl fuer einen Report: nur Google, nur Meta oder kombiniert."""
+
+    GOOGLE = "google"
+    META = "meta"
+    ALL = "all"
 
 
 def round_conversions(value: Decimal | int | float) -> int:
@@ -47,7 +58,7 @@ class ChannelData(BaseModel):
 class DailyMetrics(BaseModel):
     report_date: date
     client_slug: str
-    channel: str  # "Google PMAX Kampagnen" | "Suchanzeigen" | "Meta Anzeigen" | "merchant_center"
+    channel: str  # "Google PMAX Kampagnen" | "Suchanzeigen" | "Meta Anzeigen"
     impressions: int = 0
     clicks: int = 0
     cost: Decimal = Decimal("0")
@@ -63,7 +74,6 @@ class ReportData(BaseModel):
     date_from: date
     date_to: date
     channels: list[ChannelData] = []
-    merchant_center: ChannelConversions | None = None
 
     @computed_field
     @property
@@ -77,22 +87,15 @@ class ReportData(BaseModel):
     @computed_field
     @property
     def total_conversions(self) -> ChannelConversions:
-        all_sources = [c.conversions for c in self.channels]
-        if self.merchant_center:
-            all_sources.append(self.merchant_center)
         return ChannelConversions(
-            purchases=sum(s.purchases for s in all_sources),
-            revenue=sum(s.revenue for s in all_sources),
+            purchases=sum(c.conversions.purchases for c in self.channels),
+            revenue=sum(c.conversions.revenue for c in self.channels),
         )
 
-    def google_channels(self) -> list[ChannelData]:
-        return [c for c in self.channels if c.name != "Meta Anzeigen"]
-
-    def google_ad_spend(self) -> Decimal:
-        return sum((c.performance.cost for c in self.google_channels()), Decimal("0"))
-
-    def google_purchases(self) -> int:
-        return sum(c.conversions.purchases for c in self.google_channels())
-
-    def google_revenue(self) -> Decimal:
-        return sum((c.conversions.revenue for c in self.google_channels()), Decimal("0"))
+    def for_scope(self, scope: ChannelScope) -> ReportData:
+        """Kanaele auf den gewaehlten Scope einschraenken (Meta vs. Google)."""
+        if scope == ChannelScope.ALL:
+            return self
+        keep_meta = scope == ChannelScope.META
+        channels = [c for c in self.channels if (c.name == META_CHANNEL) == keep_meta]
+        return self.model_copy(update={"channels": channels})

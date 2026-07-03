@@ -23,13 +23,6 @@
                         <td>{{ row.revenue }}</td>
                     </tr>
                     {% endfor %}
-                    {% if merchant_row %}
-                    <tr>
-                        <td>{{ merchant_row.name }}</td>
-                        <td>{{ merchant_row.purchases }}</td>
-                        <td>{{ merchant_row.revenue }}</td>
-                    </tr>
-                    {% endif %}
                     <tr class="total">
                         <td>{{ conv_total.name }}</td>
                         <td>{{ conv_total.purchases }}</td>
