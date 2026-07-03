@@ -1,0 +1,17 @@
+client:
+  name: "OVD Kinegram"
+  slug: "ovd-kinegram"
+
+# cover_image: "assets/clients/ovd-kinegram/cover.jpg"   # TODO: Titelbild fehlt noch
+# client_logo: "assets/clients/ovd-kinegram/logo.png"    # TODO: Logo fehlt noch
+
+google_ads:
+  # Kunde hat zwei Accounts unter dem MCC; die Mobile-Chip-SDK-Kampagne
+  # laeuft ENABLED in 970-611-7227 (in 433-518-0494 nur PAUSED-Kopie
+  # plus separate DOVID-Kampagnen).
+  customer_id: "970-611-7227"
+  # Keine campaigns-Patterns: gesamter Account, Kanaele automatisch nach Typ
+
+status_quo:
+  next_steps: ""
+  footnotes: []

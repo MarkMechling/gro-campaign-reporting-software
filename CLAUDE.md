@@ -1,6 +1,6 @@
 # GRO Campaign Reporting Software
 
-Automatisiertes Kampagnen-Reporting fuer MASSIVEART-Kunden mit BigQuery-Speicher und Self-Service Web UI (Streamlit). Generiert 4-seitige PDF-Reports (Titelseite, Performance, Conversions, Status Quo) aus Google Ads, Meta Ads und GA4 Daten. Weiterentwicklung des CLI-Tools in `/Users/mark.mechling/PycharmProjects/GRO-campaign-reporting` (bleibt unveraendert).
+Automatisiertes Kampagnen-Reporting fuer MASSIVEART-Kunden mit BigQuery-Speicher und Self-Service Web UI (Streamlit). Generiert 4-seitige PDF-Reports (Titelseite, Performance, Conversions, Status Quo) aus Google Ads und Meta Ads Daten -- pro Kanal getrennt oder kombiniert. Weiterentwicklung des CLI-Tools in `/Users/mark.mechling/PycharmProjects/GRO-campaign-reporting` (bleibt unveraendert).
 
 ## Schnellstart
 
@@ -25,6 +25,7 @@ gro-report sync fuerst --month 2026-05              # Tagesdaten nach BigQuery
 gro-report sync all --from 2026-05-01 --to 2026-05-31 --force
 gro-report generate fuerst --month 2026-05          # Live-APIs (wie bisher)
 gro-report generate fuerst --month 2026-05 --source bq  # Aus BigQuery
+gro-report generate fuerst --month 2026-05 --source bq --channels google  # Nur Google Ads
 
 # Web UI
 streamlit run app.py
@@ -42,7 +43,7 @@ src/gro_reporting/
   models.py       # KPI-Datenmodelle (ChannelPerformance, ChannelConversions, ReportData, DailyMetrics)
   formatting.py   # Deutsche Zahlen/Waehrung/Datum (kein locale)
   sync.py         # sync_client: fehlende Tage fetchen -> BigQuery
-  fetchers/       # API-Adapter: google_ads.py, meta_ads.py, ga4.py (je fetch + fetch_daily)
+  fetchers/       # API-Adapter: google_ads.py, meta_ads.py (je fetch + fetch_daily)
   storage/
     bigquery.py   # BigQueryStorage: ensure_schema, write_daily, get_coverage, query_report_data
   report/
@@ -51,20 +52,44 @@ src/gro_reporting/
   templates/      # Jinja2 HTML-Templates + style.css + Fonts (GT Walsheim Pro)
   assets/         # MASSIVEART-Logos (massiveart-logo.jpg, logo_m.svg)
 assets/clients/   # Kunden-Assets (Cover-Bilder, Logos: assets/clients/<slug>/logo.png)
-clients/          # YAML-Config pro Kunde (fuerst.yaml, _example.yaml)
+clients/          # YAML-Config pro Kunde (Vorlage: _example.yaml)
 output/           # Generierte PDFs (gitignored)
 tests/
 ```
 
+## Kunden
+
+Alle Google-Ads-Accounts liegen unter dem MASSIVEART-MCC (631-570-0134). Ohne
+`campaigns`-Patterns wird der gesamte Account nach Kampagnentyp berichtet.
+
+| Slug | Kunde | Customer ID | Besonderheiten |
+|------|-------|-------------|----------------|
+| `fuerst` | Cafe-Konditorei Fürst | 335-170-7731 | Einziger Kunde mit Meta Ads + E-Commerce (Purchases/Umsatz); nutzt campaigns-Patterns (`*PMAX*`, `*GSU*`); aktuell keine Ads geplant |
+| `rhomberg-bau` | Rhomberg Bau | 233-324-1399 | Account enthaelt viele Alt-Kampagnen (RB-G**-Schema) |
+| `lech-zuers` | Lech Zürs Tourismus | 229-519-9676 | Search + PMax + Demand Gen aktiv |
+| `thun-thunersee` | Thun-Thunersee Tourismus | 358-472-4597 | `currency: CHF` |
+| `ovd-kinegram` | OVD Kinegram | 970-611-7227 | Zweiter Account 433-518-0494 (DOVID-Kampagnen) wird nicht berichtet |
+| `getzner-dach` | Getzner Werkstoffe DACH | 755-934-2141 | Getzner: 5 Regionen-Accounts, identische Kampagnennamen |
+| `getzner-europa-au` | Getzner Europa & Australien | 929-806-0739 | |
+| `getzner-usa` | Getzner USA | 576-881-7105 | |
+| `getzner-en-world` | Getzner EN World | 680-764-3584 | |
+| `getzner-fr` | Getzner Frankreich | 761-453-9762 | |
+
+Offen bei den 2026-07 onboardeten Kunden: Cover-Bilder (alle), Logos
+(Thun, OVD, Getzner), `next_steps`-Texte, ggf. Meta-Account-IDs. B2B-Kunden
+haben kein Purchase-Tracking -- Conversions/ROAS zeigen 0, Lead-basiertes
+Conversion-Reporting ist ein offenes Feature.
+
 ## Architektur
 
 ```
-Sync:    APIs (Google Ads / Meta / GA4) --Tageszeilen--> BigQuery (daily_metrics)
+Sync:    APIs (Google Ads / Meta) --Tageszeilen--> BigQuery (daily_metrics)
 Report:  Streamlit UI --Kunde+Zeitraum--> BQ-Aggregat --> ReportData --> ReportBuilder (Jinja2+WeasyPrint) --> PDF
 ```
 
 - Kunden-Configs liegen als YAML in `clients/`. Slug = Dateiname ohne Extension.
-- BigQuery-Tabelle `daily_metrics`: eine Zeile pro Kunde/Kanal/Tag, partitioniert nach `report_date`, geclustert nach `client_slug`. Kanaele: `Google PMAX Kampagnen`, `Suchanzeigen`, `Meta Anzeigen`, `merchant_center`.
+- BigQuery-Tabelle `daily_metrics`: eine Zeile pro Kunde/Kanal/Tag, partitioniert nach `report_date`, geclustert nach `client_slug`. Kanaele: `Google PMAX Kampagnen`, `Suchanzeigen`, `Demand Gen Kampagnen`, `Display Kampagnen`, `YouTube Kampagnen`, `Shopping Kampagnen`, `Meta Anzeigen`. (Alt-Kanal `merchant_center` existiert noch als Fuerst-Altdaten, wird von Report-Queries ausgeschlossen -- Feature entfernt.)
+- Kanal-Scope pro Report (`ChannelScope`: google/meta/all): UI-Radio bzw. CLI `--channels`; Sync holt immer alle konfigurierten Kanaele, gefiltert wird erst beim Report (`ReportData.for_scope`).
 - `write_daily` ist idempotent: DELETE fuer (Kunde, Zeitraum), dann query-basiertes INSERT (kein Streaming-Buffer).
 - Sync ist inkrementell: `get_coverage` ermittelt fehlende Tage; `--force` laedt alles neu.
 - Live-Pfad (`--source live`, Default) funktioniert weiterhin ohne BigQuery.
@@ -97,10 +122,12 @@ Aktuell konfiguriert: GCP-Projekt `llm-reporting-493211`, Service Account wieder
 - Purchases sind fraktional (Google Ads data-driven attribution): als Decimal/NUMERIC durch die ganze Pipeline, gerundet wird genau einmal auf Kanal-Ebene via `models.round_conversions` -- nie `int()` auf Zeilen-Ebene (verfaelscht Summen je nach Granularitaet)
 - Synchronisierte Tage ohne Aktivitaet bekommen eine `_no_data`-Markerzeile in BigQuery; Kanaele mit `_`-Prefix sind von Report-Queries ausgeschlossen
 - Keine Emojis in der UI (Streamlit + CLI)
-- ROAS-Berechnung basiert auf tatsaechlichem Umsatz (nicht Mindestwarenkorbwert), konfigurierbar pro Kunde via `roas_mode`: `google_only`, `google_plus_merchant`, `total`
-- PMAX ROAS wird separat berechnet und auf der Status-Quo-Seite als eigene KPI-Zeile angezeigt
+- ROAS-Berechnung basiert auf tatsaechlichem Umsatz und ergibt sich aus dem Kanal-Scope des Reports (Google-Report -> Google-ROAS usw.); kein `roas_mode` mehr in der Config
+- PMAX ROAS wird separat berechnet und auf der Status-Quo-Seite als eigene KPI-Zeile angezeigt -- nur wenn der PMAX-Kanal im Report enthalten ist (entfaellt z.B. bei Meta-only)
+- Merchant-Center-Daten (GA4) wurden entfernt (nur Fuerst hatte E-Commerce; alle anderen Kunden sind B2B)
 - Conversions-Tabelle zeigt nur Purchase + Umsatz, Kurznamen via `builder.py:CONV_NAME_MAP`
-- Google Ads Kampagnennamen nutzen Wildcard-Patterns (z.B. `*PMAX*`, `*GSU*`) da Kampagnen mit Datum-Prefix benannt sind
+- Google-Ads-Kanalzuordnung: ohne `campaigns`-Patterns in der YAML wird der gesamte Account automatisch nach `advertising_channel_type` kategorisiert (Search/PMax/Display/YouTube/DemandGen/Shopping, Mapping `fetchers/google_ads.py:TYPE_LABELS`) -- Default fuer alle Kunden ausser Fürst. Mit Patterns (z.B. `pmax: ["*PMAX*"]`) werden nur passende Kampagnen berichtet (Kategorien-Mapping `CHANNEL_LABELS`); Patterns duerfen sich nicht ueberlappen (sonst Doppelzaehlung).
+- Waehrung pro Kunde via `currency` in der YAML (Default EUR; Thun-Thunersee rechnet in CHF ab); Formatierung inkl. ROAS-Satz passt sich an
 - Google Ads Conversion-Action-Namen werden normalisiert (Leerzeichen -> Unterstriche) fuer zuverlaessiges Matching
 - UI-Texte auf Deutsch (Streamlit + CLI)
 
@@ -108,6 +135,7 @@ Aktuell konfiguriert: GCP-Projekt `llm-reporting-493211`, Service Account wieder
 
 - `--month YYYY-MM` oder `--from/--to YYYY-MM-DD`: Zeitraum (generate + sync)
 - `--source live|bq`: Datenquelle fuer generate (Default: live)
+- `--channels google|meta|all`: Kanal-Scope fuer generate (Default: all); Dateiname bekommt Suffix `_google`/`_meta`
 - `--force`: sync laedt auch bereits vorhandene Tage neu
 - `--dry-run`: Nur Daten abrufen, kein PDF
 - `--skip-fetch`: Gecachte/Placeholder-Daten, fuer Template-Iteration
@@ -117,7 +145,7 @@ Aktuell konfiguriert: GCP-Projekt `llm-reporting-493211`, Service Account wieder
 
 Ueber `.env` (gitignored). Vorlage: `.env.example`.
 
-- **Google Ads + GA4:** Gleiche OAuth-Credentials (Client ID, Secret, Refresh Token). Der Refresh Token hat Scopes fuer `adwords` und `analytics.readonly`.
+- **Google Ads:** OAuth-Credentials (Client ID, Secret, Refresh Token). Der Refresh Token hat Scopes fuer `adwords` und `analytics.readonly` (Analytics-Scope historisch, wird nicht mehr genutzt).
 - **Meta Ads:** System User Token aus dem Business Manager (laeuft nicht ab).
 - **Login Customer ID:** MCC-ID von MASSIVEART (631-570-0134).
 - **BigQuery:** Service Account JSON via `GOOGLE_APPLICATION_CREDENTIALS`.

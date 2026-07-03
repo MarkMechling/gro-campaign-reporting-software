@@ -1,0 +1,16 @@
+client:
+  name: "Thun-Thunersee Tourismus"
+  slug: "thun-thunersee"
+
+currency: "CHF"   # Ads-Konto rechnet in CHF ab
+
+# cover_image: "assets/clients/thun-thunersee/cover.jpg"   # TODO: Titelbild fehlt noch
+# client_logo: "assets/clients/thun-thunersee/logo.png"    # TODO: Logo fehlt noch
+
+google_ads:
+  customer_id: "358-472-4597"
+  # Keine campaigns-Patterns: gesamter Account, Kanaele automatisch nach Typ
+
+status_quo:
+  next_steps: ""
+  footnotes: []

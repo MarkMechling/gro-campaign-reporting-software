@@ -1,0 +1,15 @@
+client:
+  name: "Lech Zürs Tourismus"
+  slug: "lech-zuers"
+
+# cover_image: "assets/clients/lech-zuers/cover.jpg"   # TODO: Titelbild fehlt noch
+client_logo: "assets/clients/lech-zuers/logo.png"
+
+google_ads:
+  customer_id: "229-519-9676"
+  # Keine campaigns-Patterns: gesamter Account, Kanaele automatisch
+  # nach Kampagnentyp (Search/PMax/Display/YouTube/DemandGen)
+
+status_quo:
+  next_steps: ""
+  footnotes: []

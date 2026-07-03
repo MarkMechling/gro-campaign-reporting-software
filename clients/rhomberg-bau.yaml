@@ -1,0 +1,15 @@
+client:
+  name: "Rhomberg Bau"
+  slug: "rhomberg-bau"
+
+# cover_image: "assets/clients/rhomberg-bau/cover.jpg"   # TODO: Titelbild fehlt noch
+client_logo: "assets/clients/rhomberg-bau/logo.png"
+
+google_ads:
+  customer_id: "233-324-1399"
+  # Keine campaigns-Patterns: gesamter Account, Kanaele automatisch
+  # nach Kampagnentyp (Search/PMax/Display/YouTube/DemandGen)
+
+status_quo:
+  next_steps: ""
+  footnotes: []

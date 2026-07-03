@@ -1,0 +1,14 @@
+client:
+  name: "Getzner Werkstoffe – EN World"
+  slug: "getzner-en-world"
+
+# cover_image: "assets/clients/getzner/cover.jpg"   # TODO: Titelbild fehlt noch
+# client_logo: "assets/clients/getzner/logo.png"    # TODO: Logo fehlt noch
+
+google_ads:
+  customer_id: "680-764-3584"
+  # Keine campaigns-Patterns: gesamter Account, Kanaele automatisch nach Typ
+
+status_quo:
+  next_steps: ""
+  footnotes: []
