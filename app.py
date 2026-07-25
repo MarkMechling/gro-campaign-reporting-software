@@ -18,7 +18,14 @@ from gro_reporting.report.builder import ReportBuilder
 
 load_dotenv()
 
-st.set_page_config(page_title="GRO Campaign Reporting", layout="centered")
+ASSETS_DIR = Path(__file__).parent / "src" / "gro_reporting" / "assets"
+
+st.set_page_config(
+    page_title="GRO Campaign Reporting",
+    page_icon=str(ASSETS_DIR / "massiveart-logo.jpg"),
+    layout="centered",
+)
+st.logo(str(ASSETS_DIR / "logo_m_white.png"), size="large")
 
 
 def last_full_month() -> tuple[date, date]:

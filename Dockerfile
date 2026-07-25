@@ -21,6 +21,7 @@ COPY clients ./clients
 COPY assets ./assets
 COPY app.py ./
 COPY .streamlit ./.streamlit
+COPY static ./static
 
 ENV PORT=8080
 

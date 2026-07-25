@@ -32,5 +32,10 @@ gro-report = "gro_reporting.cli:cli"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# Templates/Fonts/Logos muessen mit ins Wheel, sonst fehlen sie im
+# Docker-Image (non-editable install laedt aus site-packages).
+[tool.setuptools.package-data]
+gro_reporting = ["templates/*", "assets/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

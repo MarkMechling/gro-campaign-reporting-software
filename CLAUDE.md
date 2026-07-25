@@ -35,7 +35,8 @@ streamlit run app.py
 
 ```
 app.py            # Streamlit Self-Service UI (Kunde + Zeitraum -> PDF)
-.streamlit/       # Theme (MASSIVEART CI)
+.streamlit/       # Theme (MASSIVEART CI inkl. GT-Walsheim-fontFaces)
+static/           # Fonts fuer die Streamlit-UI (Kopien aus src/gro_reporting/templates/)
 Dockerfile        # Cloud-Run-ready (python:3.12-slim + WeasyPrint-Deps)
 src/gro_reporting/
   cli.py          # Click CLI: generate, sync, init-bq, list, validate
@@ -50,7 +51,7 @@ src/gro_reporting/
     builder.py    # Data -> Template-Context -> HTML -> PDF
     renderer.py   # WeasyPrint-Wrapper
   templates/      # Jinja2 HTML-Templates + style.css + Fonts (GT Walsheim Pro)
-  assets/         # MASSIVEART-Logos (massiveart-logo.jpg, logo_m.svg)
+  assets/         # MASSIVEART-Logos (massiveart-logo.jpg, logo_m_white.png, logo_m.svg)
 assets/clients/   # Kunden-Assets (Cover-Bilder, Logos: assets/clients/<slug>/logo.png)
 clients/          # YAML-Config pro Kunde (Vorlage: _example.yaml)
 output/           # Generierte PDFs (gitignored)
@@ -130,6 +131,8 @@ Aktuell konfiguriert: GCP-Projekt `llm-reporting-493211`, Service Account wieder
 - Formatierungsfunktionen in `formatting.py` -- kein `locale.setlocale()`
 - MASSIVEART CI-Farben: Panel `#1d3c4b` (colorBlueItems), Akzent `#36f5cf` (colorGreenTurquoise), Dunkel `#161b20` (colorGreySeven), Primaer-Gruen `#009d77` (colorGreenHaze)
 - Font: GT Walsheim Pro (Light 300 + Black 900)
+- Streamlit-UI im MASSIVE ART Look: GT Walsheim via `theme.fontFaces` (Fonts aus `static/`, braucht `server.enableStaticServing`), Basis-/Heading-Gewicht 300, weisses M.-Logo (`logo_m_white.png`, aus `massiveart-logo.jpg` generiert) via `st.logo`
+- `[tool.setuptools.package-data]` schliesst `templates/` + `assets/` ins Wheel ein -- ohne den Eintrag fehlen Templates/Fonts im Docker-Image (non-editable install)
 - Per-Kunde-Branding: `cover_image` + `client_logo` in der Kunden-YAML (Pfade relativ zum Projekt-Root); MASSIVEART-Logo und CI bleiben fix
 - Kundenlogos: transparente PNGs, bevorzugt als weisse Knockout-Variante (Titelseite ist dunkel; das blaue Fürst-Logo war auf dem Cover unleserlich, Original liegt als `logo_blue.png` daneben)
 - Purchases sind fraktional (Google Ads data-driven attribution): als Decimal/NUMERIC durch die ganze Pipeline, gerundet wird genau einmal auf Kanal-Ebene via `models.round_conversions` -- nie `int()` auf Zeilen-Ebene (verfaelscht Summen je nach Granularitaet)

@@ -1,9 +1,28 @@
+[server]
+enableStaticServing = true
+
 [theme]
 base = "dark"
 primaryColor = "#36f5cf"
 backgroundColor = "#161b20"
 secondaryBackgroundColor = "#1d3c4b"
 textColor = "#ffffff"
+font = "GT Walsheim Pro, sans-serif"
+headingFont = "GT Walsheim Pro, sans-serif"
+baseFontWeight = 300
+headingFontWeights = [300, 300, 300, 300, 300, 300]
+
+# GT Walsheim Pro liegt fuer die UI in static/ (Kopien aus src/gro_reporting/templates/);
+# nur Light 300 + Black 900 sind lizenziert/vorhanden, Zwischengewichte rendern als 300.
+[[theme.fontFaces]]
+family = "GT Walsheim Pro"
+url = "app/static/GT-Walsheim-Pro-Light.woff"
+weight = 300
+
+[[theme.fontFaces]]
+family = "GT Walsheim Pro"
+url = "app/static/GT-Walsheim-Pro-Black.ttf"
+weight = 900
 
 [browser]
 gatherUsageStats = false
