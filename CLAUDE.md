@@ -65,7 +65,7 @@ Alle Google-Ads-Accounts liegen unter dem MASSIVEART-MCC (631-570-0134). Ohne
 | Slug | Kunde | Customer ID | Besonderheiten |
 |------|-------|-------------|----------------|
 | `fuerst` | Cafe-Konditorei Fürst | 335-170-7731 | Einziger Kunde mit Meta Ads + E-Commerce (Purchases/Umsatz); nutzt campaigns-Patterns (`*PMAX*`, `*GSU*`); aktuell keine Ads geplant |
-| `rhomberg-bau` | Rhomberg Bau | 233-324-1399 | Account enthaelt viele Alt-Kampagnen (RB-G**-Schema) |
+| `rhomberg-bau` | Rhomberg Bau | 233-324-1399 | Account enthaelt viele Alt-Kampagnen (RB-G**-Schema); Meta-Account existiert (act_1291854624802687, "Agenturkonto 2023", EUR), noch nicht in YAML konfiguriert |
 | `lech-zuers` | Lech Zürs Tourismus | 229-519-9676 | Search + PMax + Demand Gen aktiv |
 | `thun-thunersee` | Thun-Thunersee Tourismus | 358-472-4597 | `currency: CHF` |
 | `ovd-kinegram` | OVD Kinegram | 970-611-7227 | Zweiter Account 433-518-0494 (DOVID-Kampagnen) wird nicht berichtet |
@@ -79,6 +79,19 @@ Offen bei den 2026-07 onboardeten Kunden: Cover-Bilder (alle), Logos
 (Thun, OVD, Getzner), `next_steps`-Texte, ggf. Meta-Account-IDs. B2B-Kunden
 haben kein Purchase-Tracking -- Conversions/ROAS zeigen 0, Lead-basiertes
 Conversion-Reporting ist ein offenes Feature.
+
+## Ad-hoc Kampagnen-Reviews (ausserhalb dieses Repos)
+
+Einmalige Kampagnen-Abschlussreports (Kampagnen-/Asset-Gruppen-/Ad-Set-Ebene,
+kuratierte Learnings-Slides) sind bewusst KEIN Feature dieses Tools. Sie leben
+in `~/PycharmProjects/adhoc-campaign-reviews/<kunde-thema>/` und laden die
+Credentials aus der `.env` dieses Repos (absoluter Pfad). Erstes Beispiel:
+`rhomberg-immobilien/` (RHOG-27, Juli 2026) mit `pull.py` (Google
+asset_group-Ebene inkl. `segments.conversion_action_name`, Meta Ad-Set-Insights
+mit Lead-Actions), `verify.py` (UI-Gegenprobe) und `build_deck.py`
+(WeasyPrint-Foliendeck im MASSIVE ART Look). Wird so etwas zum wiederkehrenden
+Bedarf (>= 2-3 Kunden), als Feature hier designen -- die API-Learnings dazu
+stehen im llm-wiki.
 
 ## Architektur
 
