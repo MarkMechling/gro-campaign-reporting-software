@@ -76,8 +76,8 @@ Alle Google-Ads-Accounts liegen unter dem MASSIVEART-MCC (631-570-0134). Ohne
 | `getzner-en-world` | Getzner EN World | 680-764-3584 | |
 | `getzner-fr` | Getzner Frankreich | 761-453-9762 | |
 
-Offen bei den 2026-07 onboardeten Kunden: Cover-Bilder (alle), Logos
-(Thun, OVD, Getzner), `next_steps`-Texte, ggf. Meta-Account-IDs. B2B-Kunden
+Offen bei den 2026-07 onboardeten Kunden: `next_steps`-Texte, ggf.
+Meta-Account-IDs (Cover + Logos sind seit 2026-07-26 komplett). B2B-Kunden
 haben kein Purchase-Tracking -- ihre Conversions-Seite zeigt stattdessen die
 per `conversion_groups` konfigurierten Lead-KPIs (seit 2026-07-26); ROAS
 bleibt 0.
@@ -177,6 +177,13 @@ pytest tests/test_report_generation.py  # PDF mit Referenz-Daten generieren
 ```
 
 Der Report-Test generiert `output/test_reference.pdf` mit den exakten Zahlen aus der Referenz-PDF.
+
+## Naechster grosser Schritt: Automatisierung (beschlossen 2026-07-26)
+
+Das Reporting soll komplett automatisiert werden. Noch nicht designt;
+wahrscheinlicher Umfang: zeitgesteuerter Monats-Sync (Anfang des Monats mit
+`--force` fuer den Vormonat, weil Google Conversions nachtraeglich restated),
+automatische Report-Generierung und Cloud-Run-Deployment der UI (siehe unten).
 
 ## Deployment (Cloud Run, spaeter)
 
