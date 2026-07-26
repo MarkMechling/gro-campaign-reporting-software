@@ -11,6 +11,10 @@ google_ads:
   customer_id: "358-472-4597"
   # Keine campaigns-Patterns: gesamter Account, Kanaele automatisch nach Typ
 
+conversion_groups:
+  - label: "Anfragen"
+    actions: ["Unverbindlich Anfragen CTA"]
+
 status_quo:
   next_steps: ""
   footnotes: []

@@ -78,8 +78,9 @@ Alle Google-Ads-Accounts liegen unter dem MASSIVEART-MCC (631-570-0134). Ohne
 
 Offen bei den 2026-07 onboardeten Kunden: Cover-Bilder (alle), Logos
 (Thun, OVD, Getzner), `next_steps`-Texte, ggf. Meta-Account-IDs. B2B-Kunden
-haben kein Purchase-Tracking -- Conversions/ROAS zeigen 0, Lead-basiertes
-Conversion-Reporting ist ein offenes Feature.
+haben kein Purchase-Tracking -- ihre Conversions-Seite zeigt stattdessen die
+per `conversion_groups` konfigurierten Lead-KPIs (seit 2026-07-26); ROAS
+bleibt 0.
 
 ## Ad-hoc Kampagnen-Reviews (ausserhalb dieses Repos)
 
@@ -97,12 +98,13 @@ stehen im llm-wiki.
 ## Architektur
 
 ```
-Sync:    APIs (Google Ads / Meta) --Tageszeilen--> BigQuery (daily_metrics)
+Sync:    APIs (Google Ads / Meta) --Tageszeilen--> BigQuery (daily_metrics + daily_conversions)
 Report:  Streamlit UI --Kunde+Zeitraum--> BQ-Aggregat --> ReportData --> ReportBuilder (Jinja2+WeasyPrint) --> PDF
 ```
 
 - Kunden-Configs liegen als YAML in `clients/`. Slug = Dateiname ohne Extension.
 - BigQuery-Tabelle `daily_metrics`: eine Zeile pro Kunde/Kanal/Tag, partitioniert nach `report_date`, geclustert nach `client_slug`. Kanaele: `Google PMAX Kampagnen`, `Suchanzeigen`, `Demand Gen Kampagnen`, `Display Kampagnen`, `YouTube Kampagnen`, `Shopping Kampagnen`, `Meta Anzeigen`. (Alt-Kanal `merchant_center` existiert noch als Fuerst-Altdaten, wird von Report-Queries ausgeschlossen -- Feature entfernt.)
+- BigQuery-Tabelle `daily_conversions`: eine Zeile pro Kunde/Kanal/Tag/Conversion-Action (`conversions`, `all_conversions`, `value`), gleiche Partitionierung/Clusterung. Der Sync speichert alle Actions generisch; welche im Report erscheinen, entscheidet `conversion_groups` in der Kunden-YAML -- Mapping-Aenderungen brauchen daher keinen Resync.
 - Kanal-Scope pro Report (`ChannelScope`: google/meta/all): UI-Radio bzw. CLI `--channels`; Sync holt immer alle konfigurierten Kanaele, gefiltert wird erst beim Report (`ReportData.for_scope`).
 - `write_daily` ist idempotent: DELETE fuer (Kunde, Zeitraum), dann query-basiertes INSERT (kein Streaming-Buffer).
 - Sync ist inkrementell: `get_coverage` ermittelt fehlende Tage; `--force` laedt alles neu.
@@ -141,7 +143,7 @@ Aktuell konfiguriert: GCP-Projekt `llm-reporting-493211`, Service Account wieder
 - ROAS-Berechnung basiert auf tatsaechlichem Umsatz und ergibt sich aus dem Kanal-Scope des Reports (Google-Report -> Google-ROAS usw.); kein `roas_mode` mehr in der Config
 - PMAX ROAS wird separat berechnet und auf der Status-Quo-Seite als eigene KPI-Zeile angezeigt -- nur wenn der PMAX-Kanal im Report enthalten ist (entfaellt z.B. bei Meta-only)
 - Merchant-Center-Daten (GA4) wurden entfernt (nur Fuerst hatte E-Commerce; alle anderen Kunden sind B2B)
-- Conversions-Tabelle zeigt nur Purchase + Umsatz, Kurznamen via `builder.py:CONV_NAME_MAP`
+- Conversions-Seite: ohne `conversion_groups` in der YAML Purchase + Umsatz (E-Commerce, Fuerst); mit `conversion_groups` (label + actions-Patterns analog campaigns, optional `metric: all_conversions` fuer sekundaere Actions wie Newsletter) dynamische KPI-Spalten pro Kanal. Gerundet wird einmal pro Kanal/Gruppe. Googles `conversion_action_category` ist account-uebergreifend inkonsistent gepflegt (Downloads mal REQUEST_QUOTE, mal DEFAULT) -- deshalb explizites Action-Mapping statt Kategorie-Automatik. Kanal-Kurznamen via `builder.py:CONV_NAME_MAP`
 - Google-Ads-Kanalzuordnung: ohne `campaigns`-Patterns in der YAML wird der gesamte Account automatisch nach `advertising_channel_type` kategorisiert (Search/PMax/Display/YouTube/DemandGen/Shopping, Mapping `fetchers/google_ads.py:TYPE_LABELS`) -- Default fuer alle Kunden ausser Fürst. Mit Patterns (z.B. `pmax: ["*PMAX*"]`) werden nur passende Kampagnen berichtet (Kategorien-Mapping `CHANNEL_LABELS`); Patterns duerfen sich nicht ueberlappen (sonst Doppelzaehlung).
 - Waehrung pro Kunde via `currency` in der YAML (Default EUR; Thun-Thunersee rechnet in CHF ab); Formatierung inkl. ROAS-Satz passt sich an
 - Google Ads Conversion-Action-Namen werden normalisiert (Leerzeichen -> Unterstriche) fuer zuverlaessiges Matching

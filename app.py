@@ -169,7 +169,11 @@ with col_pdf:
         with st.spinner("Report wird erstellt..."):
             try:
                 report_data = storage.query_report_data(
-                    slug, config.client.name, date_from, date_to
+                    slug,
+                    config.client.name,
+                    date_from,
+                    date_to,
+                    conversion_groups=config.conversion_groups,
                 ).for_scope(scope)
                 builder = ReportBuilder(config, report_data)
                 scope_suffix = "" if scope == ChannelScope.ALL else f"_{scope.value}"

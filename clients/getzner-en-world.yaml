@@ -9,6 +9,16 @@ google_ads:
   customer_id: "680-764-3584"
   # Keine campaigns-Patterns: gesamter Account, Kanaele automatisch nach Typ
 
+# Conversion-KPIs (identisch fuer alle 5 Getzner-Regionen-Accounts)
+conversion_groups:
+  - label: "Kontakte"
+    actions: ["Klick E-Mail", "Klick Mail", "Klick Tel"]
+  - label: "Lead-Formulare"
+    actions: ["Lead Formular send", "Lead Form send", "Lead Form sent"]
+    metric: all_conversions
+  - label: "Downloads"
+    actions: ["File Download"]
+
 status_quo:
   next_steps: ""
   footnotes: []

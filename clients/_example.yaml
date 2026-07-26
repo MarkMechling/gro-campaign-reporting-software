@@ -26,6 +26,18 @@ google_ads:
 meta_ads:
   ad_account_id: "act_123456789" # Meta Ad Account ID
 
+# Optional: Conversion-KPIs fuer die Conversions-Seite (B2B/Lead-Kunden).
+# Ohne conversion_groups zeigt die Seite Purchase + Umsatz (E-Commerce).
+# actions: exakte Conversion-Action-Namen oder fnmatch-Wildcards;
+# metric: all_conversions fuer sekundaere Actions (zaehlen nicht in der
+# normalen Conversions-Spalte, z.B. Newsletter-Anmeldungen).
+# conversion_groups:
+#   - label: "Kontakte"
+#     actions: ["Klick E-Mail", "Klick Tel"]
+#   - label: "Newsletter"
+#     actions: ["Anmeldung Newsletter*"]
+#     metric: all_conversions
+
 status_quo:
   next_steps: |
     Strategie: Beschreibung der naechsten Schritte

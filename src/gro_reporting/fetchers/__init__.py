@@ -31,14 +31,18 @@ def fetch_all_channels(
         from .google_ads import GoogleAdsFetcher
 
         fetcher = GoogleAdsFetcher(config.google_ads)
-        google_channels = fetcher.fetch(date_from, date_to)
+        google_channels = fetcher.fetch(
+            date_from, date_to, conversion_groups=config.conversion_groups
+        )
         channels.extend(google_channels)
 
     if config.meta_ads and fetch_meta and not skip_fetch:
         from .meta_ads import MetaAdsFetcher
 
         fetcher = MetaAdsFetcher(config.meta_ads)
-        meta_data = fetcher.fetch(date_from, date_to)
+        meta_data = fetcher.fetch(
+            date_from, date_to, conversion_groups=config.conversion_groups
+        )
         channels.append(meta_data)
 
     if not channels and skip_fetch:
@@ -50,6 +54,7 @@ def fetch_all_channels(
         date_from=date_from,
         date_to=date_to,
         channels=channels,
+        group_labels=[g.label for g in config.conversion_groups],
     ).for_scope(scope)
 
 

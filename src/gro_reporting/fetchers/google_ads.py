@@ -12,7 +12,9 @@ from ..models import (
     ChannelConversions,
     ChannelData,
     ChannelPerformance,
+    DailyConversion,
     DailyMetrics,
+    aggregate_conversion_groups,
     round_conversions,
 )
 from .base import BaseFetcher
@@ -84,14 +86,16 @@ class GoogleAdsFetcher(BaseFetcher):
             key=lambda kv: order.index(kv[0]) if kv[0] in order else len(order),
         )
 
-    def fetch(self, date_from: date, date_to: date) -> list[ChannelData]:
+    def fetch(
+        self, date_from: date, date_to: date, conversion_groups: list | None = None
+    ) -> list[ChannelData]:
         ga_service = self.client.get_service("GoogleAdsService")
         customer_id = self.config.customer_id
 
         perf_by_campaign, perf_types = self._fetch_performance(
             ga_service, customer_id, date_from, date_to
         )
-        conv_by_campaign, conv_types = self._fetch_conversions(
+        conv_by_campaign, actions_by_campaign, conv_types = self._fetch_conversions(
             ga_service, customer_id, date_from, date_to
         )
 
@@ -114,24 +118,39 @@ class GoogleAdsFetcher(BaseFetcher):
                 ),
                 revenue=sum(conv_by_campaign.get(n, {}).get("revenue", Decimal("0")) for n in matching),
             )
-            channels.append(ChannelData(name=label, performance=perf, conversions=conv))
+            groups: dict[str, int] = {}
+            if conversion_groups:
+                action_sums: dict[str, dict[str, Decimal]] = {}
+                for name in matching:
+                    for action, metrics in actions_by_campaign.get(name, {}).items():
+                        slot = action_sums.setdefault(
+                            action,
+                            {"conversions": Decimal("0"), "all_conversions": Decimal("0")},
+                        )
+                        slot["conversions"] += metrics["conversions"]
+                        slot["all_conversions"] += metrics["all_conversions"]
+                groups = aggregate_conversion_groups(action_sums, conversion_groups)
+            channels.append(
+                ChannelData(name=label, performance=perf, conversions=conv, groups=groups)
+            )
 
         return channels
 
     def fetch_daily(
         self, client_slug: str, date_from: date, date_to: date
-    ) -> list[DailyMetrics]:
+    ) -> tuple[list[DailyMetrics], list[DailyConversion]]:
         ga_service = self.client.get_service("GoogleAdsService")
         customer_id = self.config.customer_id
 
         perf_daily, perf_types = self._fetch_performance_daily(
             ga_service, customer_id, date_from, date_to
         )
-        conv_daily, conv_types = self._fetch_conversions_daily(
+        conv_daily, actions_daily, conv_types = self._fetch_conversions_daily(
             ga_service, customer_id, date_from, date_to
         )
 
         rows: list[DailyMetrics] = []
+        conv_rows: list[DailyConversion] = []
         for label, matching in self._channel_groups({**conv_types, **perf_types}):
             names = set(matching)
 
@@ -167,7 +186,34 @@ class GoogleAdsFetcher(BaseFetcher):
                         **agg,
                     )
                 )
-        return rows
+
+            # Alle Conversion-Actions generisch, aggregiert ueber die Kampagnen
+            # des Kanals -- Report-Zuordnung passiert erst via conversion_groups
+            by_day_action: dict[tuple[date, str], dict] = {}
+            for (day, name), actions in actions_daily.items():
+                if name not in names:
+                    continue
+                for action, metrics in actions.items():
+                    slot = by_day_action.setdefault(
+                        (day, action),
+                        {"conversions": Decimal("0"), "all_conversions": Decimal("0"),
+                         "value": Decimal("0")},
+                    )
+                    slot["conversions"] += metrics["conversions"]
+                    slot["all_conversions"] += metrics["all_conversions"]
+                    slot["value"] += metrics["value"]
+
+            for (day, action), metrics in sorted(by_day_action.items()):
+                conv_rows.append(
+                    DailyConversion(
+                        report_date=day,
+                        client_slug=client_slug,
+                        channel=label,
+                        action=action,
+                        **metrics,
+                    )
+                )
+        return rows, conv_rows
 
     def _fetch_performance_daily(
         self, ga_service, customer_id: str, date_from: date, date_to: date
@@ -199,7 +245,7 @@ class GoogleAdsFetcher(BaseFetcher):
 
     def _fetch_conversions_daily(
         self, ga_service, customer_id: str, date_from: date, date_to: date
-    ) -> tuple[dict, dict[str, str]]:
+    ) -> tuple[dict, dict, dict[str, str]]:
         query = f"""
             SELECT
                 segments.date,
@@ -207,6 +253,7 @@ class GoogleAdsFetcher(BaseFetcher):
                 campaign.advertising_channel_type,
                 segments.conversion_action_name,
                 metrics.conversions,
+                metrics.all_conversions,
                 metrics.conversions_value
             FROM campaign
             WHERE segments.date BETWEEN '{date_from}' AND '{date_to}'
@@ -214,17 +261,27 @@ class GoogleAdsFetcher(BaseFetcher):
         """
         response = ga_service.search(customer_id=customer_id, query=query)
         result: dict = {}
+        actions: dict = {}
         types: dict[str, str] = {}
         for row in response:
             key = (date.fromisoformat(row.segments.date), row.campaign.name)
             types[row.campaign.name] = row.campaign.advertising_channel_type.name
-            action = row.segments.conversion_action_name.lower().replace(" ", "_")
+            action_raw = row.segments.conversion_action_name
+            action = action_raw.lower().replace(" ", "_")
             if key not in result:
                 result[key] = {"purchase": Decimal("0"), "revenue": Decimal("0")}
             if "purchase" in action:
                 result[key]["purchase"] += Decimal(str(row.metrics.conversions))
                 result[key]["revenue"] += Decimal(str(row.metrics.conversions_value))
-        return result, types
+            slot = actions.setdefault(key, {}).setdefault(
+                action_raw,
+                {"conversions": Decimal("0"), "all_conversions": Decimal("0"),
+                 "value": Decimal("0")},
+            )
+            slot["conversions"] += Decimal(str(row.metrics.conversions))
+            slot["all_conversions"] += Decimal(str(row.metrics.all_conversions))
+            slot["value"] += Decimal(str(row.metrics.conversions_value))
+        return result, actions, types
 
     def _fetch_performance(
         self, ga_service, customer_id: str, date_from: date, date_to: date
@@ -255,13 +312,14 @@ class GoogleAdsFetcher(BaseFetcher):
 
     def _fetch_conversions(
         self, ga_service, customer_id: str, date_from: date, date_to: date
-    ) -> tuple[dict, dict[str, str]]:
+    ) -> tuple[dict, dict, dict[str, str]]:
         query = f"""
             SELECT
                 campaign.name,
                 campaign.advertising_channel_type,
                 segments.conversion_action_name,
                 metrics.conversions,
+                metrics.all_conversions,
                 metrics.conversions_value
             FROM campaign
             WHERE segments.date BETWEEN '{date_from}' AND '{date_to}'
@@ -269,11 +327,13 @@ class GoogleAdsFetcher(BaseFetcher):
         """
         response = ga_service.search(customer_id=customer_id, query=query)
         result: dict = {}
+        actions: dict = {}
         types: dict[str, str] = {}
         for row in response:
             name = row.campaign.name
             types[name] = row.campaign.advertising_channel_type.name
-            action = row.segments.conversion_action_name.lower().replace(" ", "_")
+            action_raw = row.segments.conversion_action_name
+            action = action_raw.lower().replace(" ", "_")
             if name not in result:
                 result[name] = {
                     "purchase": Decimal("0"),
@@ -282,4 +342,12 @@ class GoogleAdsFetcher(BaseFetcher):
             if "purchase" in action:
                 result[name]["purchase"] += Decimal(str(row.metrics.conversions))
                 result[name]["revenue"] += Decimal(str(row.metrics.conversions_value))
-        return result, types
+            slot = actions.setdefault(name, {}).setdefault(
+                action_raw,
+                {"conversions": Decimal("0"), "all_conversions": Decimal("0"),
+                 "value": Decimal("0")},
+            )
+            slot["conversions"] += Decimal(str(row.metrics.conversions))
+            slot["all_conversions"] += Decimal(str(row.metrics.all_conversions))
+            slot["value"] += Decimal(str(row.metrics.conversions_value))
+        return result, actions, types

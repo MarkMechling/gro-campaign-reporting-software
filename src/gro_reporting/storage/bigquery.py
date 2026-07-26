@@ -17,12 +17,15 @@ from ..models import (
     ChannelConversions,
     ChannelData,
     ChannelPerformance,
+    DailyConversion,
     DailyMetrics,
     ReportData,
+    aggregate_conversion_groups,
     round_conversions,
 )
 
 TABLE_NAME = "daily_metrics"
+CONV_TABLE_NAME = "daily_conversions"
 
 # BigQuery NUMERIC hat maximal 9 Nachkommastellen
 _NUMERIC_SCALE = Decimal("0.000000001")
@@ -68,6 +71,10 @@ class BigQueryStorage:
     def table_id(self) -> str:
         return f"{self.project}.{self.dataset}.{TABLE_NAME}"
 
+    @property
+    def conv_table_id(self) -> str:
+        return f"{self.project}.{self.dataset}.{CONV_TABLE_NAME}"
+
     def ensure_schema(self) -> None:
         """Dataset und Tabelle anlegen, falls nicht vorhanden."""
         from google.cloud import bigquery
@@ -93,6 +100,21 @@ class BigQueryStorage:
         table.time_partitioning = bigquery.TimePartitioning(field="report_date")
         table.clustering_fields = ["client_slug"]
         self.client.create_table(table, exists_ok=True)
+
+        conv_schema = [
+            bigquery.SchemaField("report_date", "DATE", mode="REQUIRED"),
+            bigquery.SchemaField("client_slug", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("channel", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("action", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("conversions", "NUMERIC"),
+            bigquery.SchemaField("all_conversions", "NUMERIC"),
+            bigquery.SchemaField("value", "NUMERIC"),
+            bigquery.SchemaField("synced_at", "TIMESTAMP"),
+        ]
+        conv_table = bigquery.Table(self.conv_table_id, schema=conv_schema)
+        conv_table.time_partitioning = bigquery.TimePartitioning(field="report_date")
+        conv_table.clustering_fields = ["client_slug"]
+        self.client.create_table(conv_table, exists_ok=True)
 
     def write_daily(self, rows: list[DailyMetrics]) -> int:
         """Idempotent schreiben: vorhandene Zeilen fuer (Kunde, Zeitraum) ersetzen.
@@ -151,6 +173,60 @@ class BigQueryStorage:
         self.client.query(insert_query, job_config=job_config).result()
         return len(rows)
 
+    def write_daily_conversions(
+        self, slug: str, date_from: date, date_to: date, rows: list[DailyConversion]
+    ) -> int:
+        """Idempotent schreiben, analog zu write_daily.
+
+        Der Loesch-Zeitraum kommt explizit vom Sync: Conversion-Zeilen sind
+        sparse (keine _no_data-Marker), min/max der Zeilen waere zu kurz.
+        """
+        from google.cloud import bigquery
+
+        delete_query = f"""
+            DELETE FROM `{self.conv_table_id}`
+            WHERE client_slug = @slug
+              AND report_date BETWEEN @date_from AND @date_to
+        """
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("slug", "STRING", slug),
+                bigquery.ScalarQueryParameter("date_from", "DATE", date_from),
+                bigquery.ScalarQueryParameter("date_to", "DATE", date_to),
+            ]
+        )
+        self.client.query(delete_query, job_config=job_config).result()
+
+        if not rows:
+            return 0
+
+        struct_params = [
+            bigquery.StructQueryParameter(
+                None,
+                bigquery.ScalarQueryParameter("report_date", "DATE", r.report_date),
+                bigquery.ScalarQueryParameter("client_slug", "STRING", r.client_slug),
+                bigquery.ScalarQueryParameter("channel", "STRING", r.channel),
+                bigquery.ScalarQueryParameter("action", "STRING", r.action),
+                bigquery.ScalarQueryParameter("conversions", "NUMERIC", r.conversions.quantize(_NUMERIC_SCALE)),
+                bigquery.ScalarQueryParameter("all_conversions", "NUMERIC", r.all_conversions.quantize(_NUMERIC_SCALE)),
+                bigquery.ScalarQueryParameter("value", "NUMERIC", r.value.quantize(_NUMERIC_SCALE)),
+            )
+            for r in rows
+        ]
+        insert_query = f"""
+            INSERT INTO `{self.conv_table_id}`
+                (report_date, client_slug, channel, action,
+                 conversions, all_conversions, value, synced_at)
+            SELECT row.report_date, row.client_slug, row.channel, row.action,
+                   row.conversions, row.all_conversions, row.value, CURRENT_TIMESTAMP()
+            FROM UNNEST(@rows) AS row
+        """
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[bigquery.ArrayQueryParameter("rows", "STRUCT", struct_params)]
+        )
+        self.client.query(insert_query, job_config=job_config).result()
+        return len(rows)
+
     def get_coverage(self, slug: str, date_from: date, date_to: date) -> set[date]:
         """Welche Tage im Zeitraum haben bereits Daten?"""
         from google.cloud import bigquery
@@ -171,8 +247,47 @@ class BigQueryStorage:
         result = self.client.query(query, job_config=job_config).result()
         return {row.report_date for row in result}
 
+    def _query_conversion_sums(
+        self, slug: str, date_from: date, date_to: date
+    ) -> dict[str, dict[str, dict[str, Decimal]]]:
+        """Kanal -> Action -> {conversions, all_conversions} fuer den Zeitraum."""
+        from google.cloud import bigquery
+
+        query = f"""
+            SELECT
+                channel,
+                action,
+                SUM(conversions) AS conversions,
+                SUM(all_conversions) AS all_conversions
+            FROM `{self.conv_table_id}`
+            WHERE client_slug = @slug
+              AND report_date BETWEEN @date_from AND @date_to
+            GROUP BY channel, action
+        """
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("slug", "STRING", slug),
+                bigquery.ScalarQueryParameter("date_from", "DATE", date_from),
+                bigquery.ScalarQueryParameter("date_to", "DATE", date_to),
+            ]
+        )
+        result = self.client.query(query, job_config=job_config).result()
+
+        sums: dict[str, dict[str, dict[str, Decimal]]] = {}
+        for row in result:
+            sums.setdefault(row.channel, {})[row.action] = {
+                "conversions": Decimal(str(row.conversions or 0)),
+                "all_conversions": Decimal(str(row.all_conversions or 0)),
+            }
+        return sums
+
     def query_report_data(
-        self, slug: str, client_name: str, date_from: date, date_to: date
+        self,
+        slug: str,
+        client_name: str,
+        date_from: date,
+        date_to: date,
+        conversion_groups: list | None = None,
     ) -> ReportData:
         """Tagesdaten zu ReportData aggregieren (Ersatz fuer Live-Fetch)."""
         from google.cloud import bigquery
@@ -219,6 +334,15 @@ class BigQueryStorage:
                 ),
             )
 
+        group_labels: list[str] = []
+        if conversion_groups:
+            group_labels = [g.label for g in conversion_groups]
+            conv_sums = self._query_conversion_sums(slug, date_from, date_to)
+            for channel in by_channel.values():
+                channel.groups = aggregate_conversion_groups(
+                    conv_sums.get(channel.name, {}), conversion_groups
+                )
+
         ordered = [by_channel.pop(name) for name in CHANNEL_ORDER if name in by_channel]
         ordered.extend(by_channel.values())
 
@@ -228,4 +352,5 @@ class BigQueryStorage:
             date_from=date_from,
             date_to=date_to,
             channels=ordered,
+            group_labels=group_labels,
         )

@@ -7,6 +7,34 @@
             <h3>Kampagnen Performance Conversions</h3>
             <p class="date-range">Zeitraum: {{ date_range }}</p>
 
+            {% if conv_group_labels %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th></th>
+                        {% for label in conv_group_labels %}
+                        <th class="highlight">{{ label }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in conv_group_rows %}
+                    <tr>
+                        <td>{{ row.name }}</td>
+                        {% for value in row.cells %}
+                        <td>{{ value }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                    <tr class="total">
+                        <td>{{ conv_group_total.name }}</td>
+                        {% for value in conv_group_total.cells %}
+                        <td>{{ value }}</td>
+                        {% endfor %}
+                    </tr>
+                </tbody>
+            </table>
+            {% else %}
             <table class="data-table">
                 <thead>
                     <tr>
@@ -30,6 +58,7 @@
                     </tr>
                 </tbody>
             </table>
+            {% endif %}
 
             {% if footnotes %}
             <div class="footnotes">

@@ -7,7 +7,14 @@ from datetime import date
 from decimal import Decimal
 
 from ..config import MetaAdsConfig
-from ..models import ChannelConversions, ChannelData, ChannelPerformance, DailyMetrics
+from ..models import (
+    ChannelConversions,
+    ChannelData,
+    ChannelPerformance,
+    DailyConversion,
+    DailyMetrics,
+    aggregate_conversion_groups,
+)
 from .base import BaseFetcher
 
 
@@ -25,7 +32,9 @@ class MetaAdsFetcher(BaseFetcher):
             access_token=os.environ["META_ACCESS_TOKEN"],
         )
 
-    def fetch(self, date_from: date, date_to: date) -> ChannelData:
+    def fetch(
+        self, date_from: date, date_to: date, conversion_groups: list | None = None
+    ) -> ChannelData:
         from facebook_business.adobjects.adaccount import AdAccount
 
         account = AdAccount(self.config.ad_account_id)
@@ -54,6 +63,17 @@ class MetaAdsFetcher(BaseFetcher):
             a["action_type"]: Decimal(a["value"]) for a in row.get("action_values", [])
         }
 
+        groups: dict[str, int] = {}
+        if conversion_groups:
+            action_sums = {
+                action_type: {
+                    "conversions": Decimal(value),
+                    "all_conversions": Decimal(value),
+                }
+                for action_type, value in actions.items()
+            }
+            groups = aggregate_conversion_groups(action_sums, conversion_groups)
+
         return ChannelData(
             name="Meta Anzeigen",
             performance=ChannelPerformance(
@@ -65,11 +85,12 @@ class MetaAdsFetcher(BaseFetcher):
                 purchases=actions.get("purchase", 0),
                 revenue=action_values.get("purchase", Decimal("0")),
             ),
+            groups=groups,
         )
 
     def fetch_daily(
         self, client_slug: str, date_from: date, date_to: date
-    ) -> list[DailyMetrics]:
+    ) -> tuple[list[DailyMetrics], list[DailyConversion]]:
         from facebook_business.adobjects.adaccount import AdAccount
 
         account = AdAccount(self.config.ad_account_id)
@@ -91,14 +112,16 @@ class MetaAdsFetcher(BaseFetcher):
         insights = account.get_insights(params=params, fields=fields)
 
         rows: list[DailyMetrics] = []
+        conv_rows: list[DailyConversion] = []
         for row in insights:
             actions = {a["action_type"]: int(a["value"]) for a in row.get("actions", [])}
             action_values = {
                 a["action_type"]: Decimal(a["value"]) for a in row.get("action_values", [])
             }
+            day = date.fromisoformat(row["date_start"])
             rows.append(
                 DailyMetrics(
-                    report_date=date.fromisoformat(row["date_start"]),
+                    report_date=day,
                     client_slug=client_slug,
                     channel="Meta Anzeigen",
                     impressions=int(row.get("impressions", 0)),
@@ -108,4 +131,16 @@ class MetaAdsFetcher(BaseFetcher):
                     revenue=action_values.get("purchase", Decimal("0")),
                 )
             )
-        return rows
+            for action_type, value in actions.items():
+                conv_rows.append(
+                    DailyConversion(
+                        report_date=day,
+                        client_slug=client_slug,
+                        channel="Meta Anzeigen",
+                        action=action_type,
+                        conversions=Decimal(value),
+                        all_conversions=Decimal(value),
+                        value=action_values.get(action_type, Decimal("0")),
+                    )
+                )
+        return rows, conv_rows

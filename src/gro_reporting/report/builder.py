@@ -95,6 +95,21 @@ class ReportBuilder:
             "revenue": self._fmt_currency(total_conv.revenue),
         }
 
+        # Konfigurierte Conversion-Gruppen ersetzen die Purchase/Umsatz-Tabelle
+        conv_group_labels = data.group_labels
+        # Key "cells" statt "values": row.values waere in Jinja2 die dict-Methode
+        conv_group_rows = [
+            {
+                "name": CONV_NAME_MAP.get(ch.name, ch.name),
+                "cells": [format_number(ch.groups.get(label, 0)) for label in conv_group_labels],
+            }
+            for ch in data.channels
+        ]
+        conv_group_total = {
+            "name": "GESAMT",
+            "cells": [format_number(v) for v in data.total_groups.values()],
+        }
+
         ad_spend, revenue, roas, pmax_roas = self._calc_status_quo()
 
         perf_summary = (
@@ -125,6 +140,9 @@ class ReportBuilder:
             "perf_summary": perf_summary,
             "conv_rows": conv_rows,
             "conv_total": conv_total,
+            "conv_group_labels": conv_group_labels,
+            "conv_group_rows": conv_group_rows,
+            "conv_group_total": conv_group_total,
             "footnotes": sq.footnotes,
             "ad_spend": format_currency_suffix(ad_spend, currency=self.currency),
             "revenue": format_currency_suffix(revenue, currency=self.currency),

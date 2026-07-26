@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from .config import ClientConfig
-from .models import DailyMetrics
+from .models import DailyConversion, DailyMetrics
 from .storage.bigquery import NO_DATA_CHANNEL, BigQueryStorage
 
 
@@ -17,6 +17,7 @@ class SyncResult:
     date_to: date
     days_synced: int
     rows_written: int
+    conv_rows_written: int = 0
     skipped: bool = False
 
     def summary(self) -> str:
@@ -24,7 +25,8 @@ class SyncResult:
             return f"{self.slug}: Zeitraum bereits vollstaendig synchronisiert."
         return (
             f"{self.slug}: {self.days_synced} Tage synchronisiert "
-            f"({self.date_from} bis {self.date_to}), {self.rows_written} Zeilen geschrieben."
+            f"({self.date_from} bis {self.date_to}), {self.rows_written} Zeilen "
+            f"+ {self.conv_rows_written} Conversion-Zeilen geschrieben."
         )
 
 
@@ -58,17 +60,22 @@ def sync_client(
         fetch_from, fetch_to = min(missing), max(missing)
 
     rows: list[DailyMetrics] = []
+    conv_rows: list[DailyConversion] = []
     fetch_days = _date_range(fetch_from, fetch_to)
 
     if config.google_ads:
         from .fetchers.google_ads import GoogleAdsFetcher
 
-        rows.extend(GoogleAdsFetcher(config.google_ads).fetch_daily(slug, fetch_from, fetch_to))
+        g_rows, g_conv = GoogleAdsFetcher(config.google_ads).fetch_daily(slug, fetch_from, fetch_to)
+        rows.extend(g_rows)
+        conv_rows.extend(g_conv)
 
     if config.meta_ads:
         from .fetchers.meta_ads import MetaAdsFetcher
 
-        rows.extend(MetaAdsFetcher(config.meta_ads).fetch_daily(slug, fetch_from, fetch_to))
+        m_rows, m_conv = MetaAdsFetcher(config.meta_ads).fetch_daily(slug, fetch_from, fetch_to)
+        rows.extend(m_rows)
+        conv_rows.extend(m_conv)
 
     # Tage ohne Aktivitaet liefern keine API-Zeilen. Marker-Zeile schreiben,
     # damit get_coverage sie als synchronisiert erkennt (sonst wuerden sie
@@ -79,4 +86,5 @@ def sync_client(
             rows.append(DailyMetrics(report_date=day, client_slug=slug, channel=NO_DATA_CHANNEL))
 
     written = storage.write_daily(rows)
-    return SyncResult(slug, fetch_from, fetch_to, len(fetch_days), written)
+    conv_written = storage.write_daily_conversions(slug, fetch_from, fetch_to, conv_rows)
+    return SyncResult(slug, fetch_from, fetch_to, len(fetch_days), written, conv_written)

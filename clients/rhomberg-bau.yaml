@@ -10,6 +10,16 @@ google_ads:
   # Keine campaigns-Patterns: gesamter Account, Kanaele automatisch
   # nach Kampagnentyp (Search/PMax/Display/YouTube/DemandGen)
 
+# Conversion-KPIs; Bewerbungs-Actions (jobs.rhomberg.com) bewusst nicht
+# im Report (Entscheidung Mark 26.07.2026)
+conversion_groups:
+  - label: "Kontakte"
+    actions: ["Kontakt Karte", "Kontakt Footer"]
+  - label: "Formular-Leads"
+    actions: ["Kontaktformular", "Lead form - Submit"]
+  - label: "Downloads"
+    actions: ["Download"]
+
 status_quo:
   next_steps: ""
   footnotes: []

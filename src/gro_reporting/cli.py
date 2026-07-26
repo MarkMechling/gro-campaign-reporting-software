@@ -47,7 +47,11 @@ def generate_for_client(
         except RuntimeError as e:
             raise click.ClickException(str(e))
         report_data = storage.query_report_data(
-            config.client.slug, config.client.name, date_from, date_to
+            config.client.slug,
+            config.client.name,
+            date_from,
+            date_to,
+            conversion_groups=config.conversion_groups,
         ).for_scope(scope)
     else:
         from .fetchers import fetch_all_channels
@@ -64,8 +68,12 @@ def generate_for_client(
         click.echo(f"    Impressionen: {tp.impressions:,}")
         click.echo(f"    Klicks: {tp.clicks:,}")
         click.echo(f"    Kosten: {tp.cost}")
-        click.echo(f"    Purchases: {tc.purchases}")
-        click.echo(f"    Umsatz: {tc.revenue}")
+        if report_data.group_labels:
+            for label, value in report_data.total_groups.items():
+                click.echo(f"    {label}: {value:,}")
+        else:
+            click.echo(f"    Purchases: {tc.purchases}")
+            click.echo(f"    Umsatz: {tc.revenue}")
         return None
 
     click.echo(f"  PDF generieren...")
@@ -204,7 +212,7 @@ def init_bq():
     except RuntimeError as e:
         raise click.ClickException(str(e))
     storage.ensure_schema()
-    click.echo(f"Schema bereit: {storage.table_id}")
+    click.echo(f"Schema bereit: {storage.table_id}, {storage.conv_table_id}")
 
 
 @cli.command("list")
