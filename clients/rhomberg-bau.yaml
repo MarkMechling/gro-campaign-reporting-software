@@ -2,7 +2,7 @@ client:
   name: "Rhomberg Bau"
   slug: "rhomberg-bau"
 
-# cover_image: "assets/clients/rhomberg-bau/cover.jpg"   # TODO: Titelbild fehlt noch
+cover_image: "assets/clients/rhomberg-bau/cover.jpg"
 client_logo: "assets/clients/rhomberg-bau/logo.png"
 
 google_ads:

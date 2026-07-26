@@ -2,8 +2,8 @@ client:
   name: "OVD Kinegram"
   slug: "ovd-kinegram"
 
-# cover_image: "assets/clients/ovd-kinegram/cover.jpg"   # TODO: Titelbild fehlt noch
-# client_logo: "assets/clients/ovd-kinegram/logo.png"    # TODO: Logo fehlt noch
+cover_image: "assets/clients/ovd-kinegram/cover.jpeg"
+client_logo: "assets/clients/ovd-kinegram/logo.png"
 
 google_ads:
   # Kunde hat zwei Accounts unter dem MCC; die Mobile-Chip-SDK-Kampagne

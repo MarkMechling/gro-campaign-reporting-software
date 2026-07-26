@@ -4,8 +4,8 @@ client:
 
 currency: "CHF"   # Ads-Konto rechnet in CHF ab
 
-# cover_image: "assets/clients/thun-thunersee/cover.jpg"   # TODO: Titelbild fehlt noch
-# client_logo: "assets/clients/thun-thunersee/logo.png"    # TODO: Logo fehlt noch
+cover_image: "assets/clients/thun-thunersee/cover.jpg"
+client_logo: "assets/clients/thun-thunersee/logo.svg"   # weisse SVG-Variante; Original: logo_black.svg
 
 google_ads:
   customer_id: "358-472-4597"

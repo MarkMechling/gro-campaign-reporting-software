@@ -2,8 +2,8 @@ client:
   name: "Getzner Werkstoffe – Europa & Australien"
   slug: "getzner-europa-au"
 
-# cover_image: "assets/clients/getzner/cover.jpg"   # TODO: Titelbild fehlt noch
-# client_logo: "assets/clients/getzner/logo.png"    # TODO: Logo fehlt noch
+cover_image: "assets/clients/getzner/cover.jpg"
+client_logo: "assets/clients/getzner/logo.png"
 
 google_ads:
   customer_id: "929-806-0739"

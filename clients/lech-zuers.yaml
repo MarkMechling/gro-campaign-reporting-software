@@ -2,7 +2,7 @@ client:
   name: "Lech Zürs Tourismus"
   slug: "lech-zuers"
 
-# cover_image: "assets/clients/lech-zuers/cover.jpg"   # TODO: Titelbild fehlt noch
+cover_image: "assets/clients/lech-zuers/cover.jpg"
 client_logo: "assets/clients/lech-zuers/logo.png"
 
 google_ads:

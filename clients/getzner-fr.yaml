@@ -2,8 +2,8 @@ client:
   name: "Getzner Werkstoffe – Frankreich"
   slug: "getzner-fr"
 
-# cover_image: "assets/clients/getzner/cover.jpg"   # TODO: Titelbild fehlt noch
-# client_logo: "assets/clients/getzner/logo.png"    # TODO: Logo fehlt noch
+cover_image: "assets/clients/getzner/cover.jpg"
+client_logo: "assets/clients/getzner/logo.png"
 
 google_ads:
   customer_id: "761-453-9762"

@@ -2,8 +2,8 @@ client:
   name: "Getzner Werkstoffe – DACH"
   slug: "getzner-dach"
 
-# cover_image: "assets/clients/getzner/cover.jpg"   # TODO: Titelbild fehlt noch
-# client_logo: "assets/clients/getzner/logo.png"    # TODO: Logo fehlt noch
+cover_image: "assets/clients/getzner/cover.jpg"
+client_logo: "assets/clients/getzner/logo.png"
 
 google_ads:
   customer_id: "755-934-2141"
