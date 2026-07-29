@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Literal, Optional
 
 import yaml
 from pydantic import BaseModel, field_validator
 
-CLIENTS_DIR = Path(__file__).resolve().parent.parent.parent / "clients"
+# Projekt-Root: im Repo drei Ebenen ueber diesem Modul; bei non-editable
+# Install (Docker: Paket in site-packages) via GRO_PROJECT_ROOT setzen,
+# sonst zeigen clients/ und die Asset-Aufloesung ins Leere.
+GRO_ROOT = Path(
+    os.environ.get("GRO_PROJECT_ROOT")
+    or Path(__file__).resolve().parent.parent.parent
+)
+CLIENTS_DIR = GRO_ROOT / "clients"
 
 
 class ClientInfo(BaseModel):

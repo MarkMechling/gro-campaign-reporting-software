@@ -24,5 +24,8 @@ COPY .streamlit ./.streamlit
 COPY static ./static
 
 ENV PORT=8080
+# Paket liegt non-editable in site-packages — clients/ und Assets werden
+# ueber die Projekt-Root aufgeloest (siehe config.py:GRO_ROOT)
+ENV GRO_PROJECT_ROOT=/app
 
 CMD streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true

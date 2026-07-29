@@ -7,7 +7,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
-from ..config import ClientConfig
+from ..config import GRO_ROOT, ClientConfig
 from ..formatting import (
     currency_symbol,
     format_currency,
@@ -145,6 +145,9 @@ class ReportBuilder:
             "conv_group_total": conv_group_total,
             "footnotes": sq.footnotes,
             "ad_spend": format_currency_suffix(ad_spend, currency=self.currency),
+            # Lead-Kunden (conversion_groups) haben kein Umsatz-Tracking --
+            # Umsatz/ROAS auf der Status-Quo-Seite waeren fiktive Nullwerte
+            "show_revenue": not conv_group_labels,
             "revenue": format_currency_suffix(revenue, currency=self.currency),
             "roas": format_roas(roas),
             "pmax_roas": format_roas(pmax_roas) if pmax_roas is not None else None,
@@ -159,7 +162,7 @@ class ReportBuilder:
             return None
         candidate = Path(path_str)
         if not candidate.is_absolute():
-            candidate = Path(__file__).resolve().parent.parent.parent.parent / candidate
+            candidate = GRO_ROOT / candidate
         return str(candidate) if candidate.exists() else None
 
     def _scope_label(self) -> str:

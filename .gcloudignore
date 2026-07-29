@@ -1,0 +1,18 @@
+# Build-Kontext fuer Cloud Build — .env und Keys duerfen NIE hochgeladen
+# werden. clients/ und assets/ MUESSEN rein (werden ins Image gebacken).
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.git/
+.idea/
+.vscode/
+.pytest_cache/
+output/
+*.pdf
+.env
+*.json
+.DS_Store
+tests/
+deploy/

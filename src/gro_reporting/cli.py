@@ -167,12 +167,18 @@ def generate(
 @click.option("--month", "-m", help="Monat im Format YYYY-MM")
 @click.option("--from", "date_from_str", help="Startdatum YYYY-MM-DD")
 @click.option("--to", "date_to_str", help="Enddatum YYYY-MM-DD")
+@click.option(
+    "--last-days", type=int, help="Letzte N Tage bis einschliesslich gestern"
+)
+@click.option("--previous-month", is_flag=True, help="Kompletter Vormonat")
 @click.option("--force", is_flag=True, help="Auch bereits synchronisierte Tage neu laden")
 def sync(
     client: str,
     month: str | None,
     date_from_str: str | None,
     date_to_str: str | None,
+    last_days: int | None,
+    previous_month: bool,
     force: bool,
 ):
     """Tagesdaten fuer einen oder alle Kunden nach BigQuery synchronisieren."""
@@ -183,8 +189,17 @@ def sync(
     elif date_from_str and date_to_str:
         date_from = date.fromisoformat(date_from_str)
         date_to = date.fromisoformat(date_to_str)
+    elif last_days:
+        date_to = date.today() - timedelta(days=1)
+        date_from = date.today() - timedelta(days=last_days)
+    elif previous_month:
+        date_to = date.today().replace(day=1) - timedelta(days=1)
+        date_from = date_to.replace(day=1)
     else:
-        click.echo("Fehler: --month oder --from/--to angeben.", err=True)
+        click.echo(
+            "Fehler: --month, --from/--to, --last-days oder --previous-month angeben.",
+            err=True,
+        )
         sys.exit(1)
 
     slugs = list_clients() if client == "all" else [client]
@@ -192,14 +207,24 @@ def sync(
         click.echo("Keine Kunden konfiguriert.", err=True)
         sys.exit(1)
 
+    # Bei "all" blockiert ein fehlschlagender Kunde nicht die uebrigen; der
+    # Exit-Code bleibt trotzdem != 0, damit das Cloud-Monitoring-Alert greift.
+    failed: list[str] = []
     for slug in slugs:
         config = load_client_config(slug)
         click.echo(f"[{config.client.name}] Sync {date_from} bis {date_to}...")
         try:
             result = sync_client(config, date_from, date_to, force=force)
-        except RuntimeError as e:
-            raise click.ClickException(str(e))
+        except Exception as e:
+            if len(slugs) == 1:
+                raise click.ClickException(str(e))
+            click.echo(f"  FEHLER: {e}", err=True)
+            failed.append(slug)
+            continue
         click.echo(f"  {result.summary()}")
+
+    if failed:
+        raise click.ClickException(f"Sync fehlgeschlagen fuer: {', '.join(failed)}")
 
 
 @cli.command("init-bq")
