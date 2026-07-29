@@ -37,7 +37,8 @@ streamlit run app.py
 app.py            # Streamlit Self-Service UI (Kunde + Zeitraum -> PDF)
 .streamlit/       # Theme (MASSIVEART CI inkl. GT-Walsheim-fontFaces)
 static/           # Fonts fuer die Streamlit-UI (Kopien aus src/gro_reporting/templates/)
-Dockerfile        # Cloud-Run-ready (python:3.12-slim + WeasyPrint-Deps)
+Dockerfile        # Cloud-Run-Image (python:3.12-slim + WeasyPrint-Deps), UI + Sync-Jobs
+deploy/           # gcloud-Skripte: Infra, Secrets, Build, Jobs+Scheduler, UI+IAP, Alerting
 src/gro_reporting/
   cli.py          # Click CLI: generate, sync, init-bq, list, validate
   config.py       # Pydantic-Modelle fuer YAML-Kundenconfig (inkl. client_logo)
@@ -67,7 +68,8 @@ Alle Google-Ads-Accounts liegen unter dem MASSIVEART-MCC (631-570-0134). Ohne
 |------|-------|-------------|----------------|
 | `fuerst` | Cafe-Konditorei Fürst | 335-170-7731 | Einziger Kunde mit Meta Ads + E-Commerce (Purchases/Umsatz); nutzt campaigns-Patterns (`*PMAX*`, `*GSU*`); aktuell keine Ads geplant |
 | `rhomberg-bau` | Rhomberg Bau | 233-324-1399 | Account enthaelt viele Alt-Kampagnen (RB-G**-Schema); Meta-Account existiert (act_1291854624802687, "Agenturkonto 2023", EUR), noch nicht in YAML konfiguriert |
-| `lech-zuers` | Lech Zürs Tourismus | 229-519-9676 | Search + PMax + Demand Gen aktiv |
+| `lech-zuers` | Lech Zürs Tourismus | 229-519-9676 | Search + PMax + Demand Gen aktiv; Meta act_253540430977171 konfiguriert, aber Pixel (293905663369461) nicht eingebunden -- nur Engagement-Actions, Conversions-Mapping bleibt Google-only |
+| `gartenschau-bad-urach` | Gartenschau Bad Urach 2027 | 598-559-3347 | Meta act_1230763196784168; Kampagnenstart 2026-07-29, Pilot fuer den automatisierten Sync; next_steps + conversion_groups noch offen |
 | `thun-thunersee` | Thun-Thunersee Tourismus | 358-472-4597 | `currency: CHF` |
 | `ovd-kinegram` | OVD Kinegram | 970-611-7227 | Zweiter Account 433-518-0494 (DOVID-Kampagnen) wird nicht berichtet |
 | `getzner-dach` | Getzner Werkstoffe DACH | 755-934-2141 | Getzner: 5 Regionen-Accounts, identische Kampagnennamen |
@@ -142,6 +144,7 @@ Aktuell konfiguriert: GCP-Projekt `llm-reporting-493211`, Service Account wieder
 - Keine Emojis in der UI (Streamlit + CLI)
 - ROAS-Berechnung basiert auf tatsaechlichem Umsatz und ergibt sich aus dem Kanal-Scope des Reports (Google-Report -> Google-ROAS usw.); kein `roas_mode` mehr in der Config
 - PMAX ROAS wird separat berechnet und auf der Status-Quo-Seite als eigene KPI-Zeile angezeigt -- nur wenn der PMAX-Kanal im Report enthalten ist (entfaellt z.B. bei Meta-only)
+- Status-Quo-Seite bei Lead-Kunden (`conversion_groups` konfiguriert): Umsatz, ROAS und PMAX ROAS samt ROAS-Satz entfallen (waeren fiktive Nullwerte ohne Umsatz-Tracking, entschieden 2026-07-29) -- es bleibt der Ad Spend; E-Commerce (Fuerst, ohne conversion_groups) unveraendert
 - Merchant-Center-Daten (GA4) wurden entfernt (nur Fuerst hatte E-Commerce; alle anderen Kunden sind B2B)
 - Conversions-Seite: ohne `conversion_groups` in der YAML Purchase + Umsatz (E-Commerce, Fuerst); mit `conversion_groups` (label + actions-Patterns analog campaigns, optional `metric: all_conversions` fuer sekundaere Actions wie Newsletter) dynamische KPI-Spalten pro Kanal. Gerundet wird einmal pro Kanal/Gruppe. Googles `conversion_action_category` ist account-uebergreifend inkonsistent gepflegt (Downloads mal REQUEST_QUOTE, mal DEFAULT) -- deshalb explizites Action-Mapping statt Kategorie-Automatik. Kanal-Kurznamen via `builder.py:CONV_NAME_MAP`
 - Google-Ads-Kanalzuordnung: ohne `campaigns`-Patterns in der YAML wird der gesamte Account automatisch nach `advertising_channel_type` kategorisiert (Search/PMax/Display/YouTube/DemandGen/Shopping, Mapping `fetchers/google_ads.py:TYPE_LABELS`) -- Default fuer alle Kunden ausser Fürst. Mit Patterns (z.B. `pmax: ["*PMAX*"]`) werden nur passende Kampagnen berichtet (Kategorien-Mapping `CHANNEL_LABELS`); Patterns duerfen sich nicht ueberlappen (sonst Doppelzaehlung).
@@ -152,6 +155,7 @@ Aktuell konfiguriert: GCP-Projekt `llm-reporting-493211`, Service Account wieder
 ## CLI-Flags
 
 - `--month YYYY-MM` oder `--from/--to YYYY-MM-DD`: Zeitraum (generate + sync)
+- `--last-days N` / `--previous-month`: relative Zeitraeume fuer sync (fuer die Scheduler-Jobs; N Tage bis einschliesslich gestern bzw. kompletter Vormonat)
 - `--source live|bq`: Datenquelle fuer generate (Default: live)
 - `--channels google|meta|all`: Kanal-Scope fuer generate (Default: all); Dateiname bekommt Suffix `_google`/`_meta`
 - `--force`: sync laedt auch bereits vorhandene Tage neu
@@ -178,25 +182,43 @@ pytest tests/test_report_generation.py  # PDF mit Referenz-Daten generieren
 
 Der Report-Test generiert `output/test_reference.pdf` mit den exakten Zahlen aus der Referenz-PDF.
 
-## Naechster grosser Schritt: Automatisierung (beschlossen 2026-07-26)
+## Automatisierung (live seit 2026-07-29)
 
-Das Reporting soll komplett automatisiert werden. Noch nicht designt;
-wahrscheinlicher Umfang: zeitgesteuerter Monats-Sync (Anfang des Monats mit
-`--force` fuer den Vormonat, weil Google Conversions nachtraeglich restated),
-automatische Report-Generierung und Cloud-Run-Deployment der UI (siehe unten).
+Entschieden 2026-07-29: KEINE automatische Report-Generierung (Kampagnen
+laufen unterschiedlich lange/Kanaele variieren, Reports brauchen eh manuelle
+Kontrolle) -- stattdessen taeglicher Sync + Self-Service-UI in der Cloud.
+Alles laeuft im GCP-Projekt `llm-reporting-493211`, Region `europe-west3`,
+nach dem Muster von `~/PycharmProjects/geo-monitor` (Skripte in `deploy/`):
 
-## Deployment (Cloud Run, spaeter)
+- **gro-sync-daily** (Cloud Run Job, Scheduler taeglich 05:00 Wien):
+  `sync all --last-days 7 --force` -- faengt Googles nachtraegliche
+  Conversion-Restatements laufend ein
+- **gro-sync-monthly** (Job, am 3. des Monats 05:30 Wien):
+  `sync all --previous-month --force`
+- **gro-reporting** (Cloud Run Service): Streamlit-UI hinter IAP
+  (Google-Login, Zugriff fuer `domain:massiveart.com`), Session Affinity an.
+  URL: https://gro-reporting-f43raydkjq-ey.a.run.app
+- **Alerting**: Cloud-Monitoring-Alert bei fehlgeschlagenen Job-Executions
+  -> E-Mail an mark.mechling@massiveart.com. Der `all`-Sync bricht bei einem
+  fehlschlagenden Kunden nicht ab, exit-Code bleibt trotzdem != 0
+- **Keine SA-Keys in der Cloud**: Runtime-SA `gro-runner@` (BQ jobUser +
+  dataEditor, secretAccessor), ADC-Fallback in `BigQueryStorage`; API-Secrets
+  im Secret Manager (Jobs referenzieren `:latest`, Rotation =
+  `create_secrets.sh` neu ausfuehren)
+- `clients/` + `assets/` sind ins Image gebacken: **nach YAML-/Asset-
+  Aenderungen `./deploy/build_push.sh` + `./deploy/create_jobs.sh` +
+  `./deploy/deploy_ui.sh`** (Jobs/Service ziehen `:latest` erst beim
+  Re-Deploy). Neuer Kanal bei bestehendem Kunden braucht zusaetzlich einmal
+  einen `--force`-Sync des Zeitraums (Coverage ist pro Kunde+Tag, nicht pro
+  Kanal)
+- `GRO_PROJECT_ROOT=/app` im Image: `config.py:GRO_ROOT` loest `clients/`
+  und Asset-Pfade auf -- ohne die Variable zeigt der Pfad bei non-editable
+  Install in die site-packages und die Kundenliste waere leer
 
-```bash
-docker build -t gro-reporting .
-docker run -p 8080:8080 --env-file .env gro-reporting   # lokaler Smoke-Test
-
-# Deploy-Skizze (nicht automatisiert):
-# gcloud run deploy gro-reporting --source . --region europe-west1 \
-#   --set-env-vars GRO_BQ_PROJECT=...,GRO_BQ_DATASET=gro_reporting
-```
-
-Hinweise: Auf Cloud Run laeuft die Auth ueber den Service Account des Dienstes (kein `GOOGLE_APPLICATION_CREDENTIALS` noetig); Secrets (.env-Inhalte) via Secret Manager. Zugriffsschutz z.B. via IAP oder `--no-allow-unauthenticated` + Proxy.
+Setup-Reihenfolge (idempotent, einmalig gelaufen am 2026-07-29):
+`setup_infra.sh -> create_secrets.sh -> build_push.sh -> create_jobs.sh ->
+deploy_ui.sh -> alerting.sh`. Lokaler Smoke-Test weiterhin:
+`docker build -t gro-reporting . && docker run -p 8080:8080 --env-file .env gro-reporting`.
 
 ## LLM-Wiki Integration
 

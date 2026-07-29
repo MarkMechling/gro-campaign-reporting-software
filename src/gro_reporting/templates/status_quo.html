@@ -4,13 +4,17 @@
             <h2>Status Quo<br>(Bisherige Leistung):</h2>
             <ul class="kpi-list">
                 <li>Ad Spend: {{ ad_spend }}</li>
+                {% if show_revenue %}
                 <li>Umsatz: {{ revenue }}</li>
                 <li>Aktueller ROAS: {{ roas }}</li>
                 {% if pmax_roas is not none %}
                 <li>PMAX ROAS: {{ pmax_roas }}</li>
                 {% endif %}
+                {% endif %}
             </ul>
+            {% if show_revenue %}
             <p class="roas-text">{{ roas_summary }}</p>
+            {% endif %}
         </div>
         <div class="status-right">
             <h2>Nächster Schritt<br>(Skalierung):</h2>
