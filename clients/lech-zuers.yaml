@@ -10,6 +10,9 @@ google_ads:
   # Keine campaigns-Patterns: gesamter Account, Kanaele automatisch
   # nach Kampagnentyp (Search/PMax/Display/YouTube/DemandGen)
 
+meta_ads:
+  ad_account_id: "act_253540430977171"   # "Lech Zürs 2023"
+
 # Conversion-KPIs fuer die Conversions-Seite (Action-Namen/Wildcards wie im
 # Google-Ads-Konto; metric all_conversions fuer sekundaere Actions, die in
 # der normalen Conversions-Spalte nicht zaehlen)

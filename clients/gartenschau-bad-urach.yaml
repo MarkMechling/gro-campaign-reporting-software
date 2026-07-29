@@ -1,0 +1,18 @@
+client:
+  name: "Gartenschau Bad Urach 2027"
+  slug: "gartenschau-bad-urach"
+
+cover_image: "assets/clients/gartenschau-bad-urach/cover.jpg"
+client_logo: "assets/clients/gartenschau-bad-urach/logo.png"
+
+google_ads:
+  customer_id: "598-559-3347"
+  # Keine campaigns-Patterns: gesamter Account, Kanaele automatisch
+  # nach Kampagnentyp
+
+meta_ads:
+  ad_account_id: "act_1230763196784168"   # "Gartenschau Bad Urach 2027"
+
+status_quo:
+  next_steps: ""
+  footnotes: []
