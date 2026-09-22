@@ -206,9 +206,15 @@ nach dem Muster von `~/PycharmProjects/geo-monitor` (Skripte in `deploy/`):
   im Secret Manager (Jobs referenzieren `:latest`, Rotation =
   `create_secrets.sh` neu ausfuehren)
 - `clients/` + `assets/` sind ins Image gebacken: **nach YAML-/Asset-
-  Aenderungen `./deploy/build_push.sh` + `./deploy/create_jobs.sh` +
-  `./deploy/deploy_ui.sh`** (Jobs/Service ziehen `:latest` erst beim
-  Re-Deploy). Neuer Kanal bei bestehendem Kunden braucht zusaetzlich einmal
+  Aenderungen `./deploy/build_push.sh` + `./deploy/deploy_ui.sh`**. Die
+  Sync-Jobs loesen `:latest` beim Start jeder Execution auf (verifiziert
+  22.09.2026 mit Wegwerf-Job) — ein Push ist ab dem naechsten Sync live, ohne
+  Re-Deploy. Der UI-Service pinnt den Digest pro Revision und braucht
+  `deploy_ui.sh` direkt nach dem Push (sonst laufen Jobs und UI auf
+  verschiedenen Staenden). `create_jobs.sh` nur bei Aenderungen an
+  Job-Einstellungen (Args, Env, Secrets, Ressourcen, Scheduler).
+  `build_push.sh` laesst vorher `pytest tests` laufen und bricht bei Fehlern ab
+  (`SKIP_TESTS=1` zum Ueberspringen). Neuer Kanal bei bestehendem Kunden braucht zusaetzlich einmal
   einen `--force`-Sync des Zeitraums (Coverage ist pro Kunde+Tag, nicht pro
   Kanal)
 - `GRO_PROJECT_ROOT=/app` im Image: `config.py:GRO_ROOT` loest `clients/`
